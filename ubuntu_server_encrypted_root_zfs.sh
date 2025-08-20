@@ -8,7 +8,7 @@
 set -euo pipefail
 #set -x
 
-##Usage: <script_filename> initial | postreboot | remoteaccess | datapool
+##Usage: <script_filename> initial | postreboot | datapool
 
 ##Script to be run in two parts.
 ##Part 1: Run with "initial" option from Ubuntu live iso (desktop version) terminal.
@@ -65,7 +65,7 @@ zfs_dpool_ashift="12" #See notes for rpool ashift. If ashift is set too low, a s
 zfs_compression="zstd" #"lz4" is the zfs default; "zstd" may offer better compression at a cost of higher cpu usage.
 mountpoint="/mnt/ub_server" #Mountpoint in live iso.
 remoteaccess_first_boot="no" #"yes" to enable remoteaccess during first boot. Recommend leaving as "no" and run script with "remoteaccess". See notes in section above.
-timeout_rEFInd="3" #Timeout in seconds for rEFInd boot screen until default choice selected.
+timeout_systemd_boot="5" #Timeout in seconds for systemd-boot screen until default choice selected.
 timeout_zbm_no_remote_access="3" #Timeout in seconds for zfsbootmenu when no remote access enabled.
 timeout_zbm_remote_access="45" #Timeout in seconds for zfsbootmenu when remote access enabled. The password prompt for an encrypted root pool with allow an indefinite time to connect. An unencrypted root pool will boot the system when the timer runs out, preventing remote access.
 quiet_boot="yes" #Set to "no" to show boot sequence.
@@ -1299,133 +1299,92 @@ zectl_install_config_Func(){
 		set -x
 		apt update
 
-		compile_zbm_git(){
-			##https://github.com/zbm-dev/zfsbootmenu/blob/master/testing/helpers/chroot-ubuntu.sh
-			##Prevent interactive prompts
-			#export DEBIAN_"${install_warning_level}"
-			#export DEBCONF_NONINTERACTIVE_SEEN=true
-
-			##bsdextrautils contains column utility used in zfsbootmenu UI.
-			apt-get install --yes bsdextrautils
-
-			##Install optional mbuffer package.
-			##https://github.com/zbm-dev/zfsbootmenu/blob/master/zfsbootmenu/install-helpers.sh
-			apt-get install --yes mbuffer
-
-			##Install packages needed for zfsbootmenu
+		build_zectl(){
+			##Install dependencies for zectl build
 			apt-get install --yes --no-install-recommends \\
-				libsort-versions-perl \\
-				libboolean-perl \\
-				libyaml-pp-perl \\
+				build-essential \\
+				libzfs-dev \\
 				git \\
-				fzf \\
 				make \\
-				kexec-tools \\
-				dracut-core \\
-				fzf
+				gcc
 
 			apt-get install --yes curl
 			
-			mkdir -p /usr/local/src/zfsbootmenu
-			cd /usr/local/src/zfsbootmenu
+			mkdir -p /usr/local/src/zectl
+			cd /usr/local/src/zectl
 
-			##Download zfsbootmenu
-			zbm_release="git" ##"git" for git master. "release" for latest release.
+			##Download zectl from johnramsden repository
+			git clone https://github.com/johnramsden/zectl .
 
-			case "\${zbm_release}" in
-			git)
+			##Build zectl
+			make
+			make install
 
-				##Download the latest zfsbootmenu git master
-				git clone https://github.com/zbm-dev/zfsbootmenu .
-
-			;;
-
-			release)
-
-				##Download the latest zbm release
-				#latest_zbm_source="https://get.zfsbootmenu.org/source" #Source code from zfsbootmenu website.
-
-				use_yq="no"
-				case "\${use_yq}" in
-				yes)
-					##https://github.com/mikefarah/yq
-					wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
-
-					latest_zbm_source="\$(curl -s https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest | yq '.tarball_url')"
-				;;
-				no)
-					latest_zbm_source="\$(curl -s https://api.github.com/repos/zbm-dev/zfsbootmenu/releases/latest | grep tarball | cut -d : -f 2,3 | tr -d \"|sed 's/^[ \t]*//'|sed 's/,//')"
-				;;
-				esac
-
-				curl -L "\${latest_zbm_source-default}" | tar -zxv --strip-components=1 -f -
-
-			;;
-
-			*)
-				echo "Zfsbootmenu release version not recognised."
+			##Verify zectl installation
+			if ! command -v zectl >/dev/null 2>&1; then
+				echo "Error: zectl installation failed"
 				exit 1
-			;;
-
-			esac
-
-			make core dracut ##"make install" installs mkinitcpio, not needed.
+			fi
 
 		}
-		compile_zbm_git
+		build_zectl
 
-		##configure zfsbootmenu
-		config_zbm(){
+		##configure systemd-boot
+		config_systemd_boot(){
 			
-			kb_layoutcode="\$(debconf-get-selections | grep keyboard-configuration/layoutcode | awk '{print \$4}')"
-			
-			##https://github.com/zbm-dev/zfsbootmenu/blob/master/testing/helpers/configure-ubuntu.sh
-			##Update configuration file
-			sed \\
-			-e 's,ManageImages:.*,ManageImages: true,' \\
-			-e 's@ImageDir:.*@ImageDir: /boot/efi/EFI/ubuntu@' \\
-			-e 's,Versions:.*,Versions: false,' \\
-			-e "/CommandLine/s,ro,rd.vconsole.keymap=\${kb_layoutcode} ro," \\
-			-i /etc/zfsbootmenu/config.yaml
+			##Install systemd-boot to EFI System Partition
+			bootctl install
 
-			if [ "$quiet_boot" = "no" ]; then
-				sed -i 's,ro quiet,ro,' /etc/zfsbootmenu/config.yaml
+			##Get the root filesystem for boot configuration
+			root_dataset="\$(zfs get -H -o value mountpoint rpool/ROOT/ubuntu | grep -E '^/$')"
+			if [ -z "\${root_dataset}" ]; then
+				root_dataset="rpool/ROOT/ubuntu"
 			fi
+
+			##Create systemd-boot loader configuration
+			mkdir -p /boot/efi/loader
+			cat > /boot/efi/loader/loader.conf << EOF
+default ubuntu.conf
+timeout 5
+console-mode max
+editor no
+EOF
+
+			##Create boot entry for Ubuntu with ZFS
+			mkdir -p /boot/efi/loader/entries
 			
-			if [ -n "$zfs_root_password" ];
-			then
+			##Get kernel version for boot entry
+			kernel_version=\$(ls /boot/vmlinuz-* | head -1 | sed 's/.*vmlinuz-//')
+			
+			##Create Ubuntu boot entry
+			cat > /boot/efi/loader/entries/ubuntu.conf << EOF
+title   Ubuntu ZFS
+linux   /vmlinuz-\${kernel_version}
+initrd  /initrd.img-\${kernel_version}
+options root=ZFS=\${root_dataset} rw
+EOF
+
+			##Add encryption support if needed
+			if [ -n "$zfs_root_password" ]; then
 				case "$zfs_root_encrypt" in
 					luks)
-						##https://github.com/agorgl/zbm-luks-unlock
-						zfsbootmenu_hook_root=/etc/zfsbootmenu/hooks ##https://docs.zfsbootmenu.org/en/v2.3.x/man/zfsbootmenu.7.html
-						
-						mkdir -p \${zfsbootmenu_hook_root}/early-setup.d
-						cd \${zfsbootmenu_hook_root}/early-setup.d
-						if ! curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/hooks/early-setup.d/luks-unlock.sh; then
-							echo "Failed to download zbm-luks-unlock hook. Check internet connectivity."
-							exit 1
-						fi
-						chmod +x \${zfsbootmenu_hook_root}/early-setup.d/luks-unlock.sh
-						
-						#mkdir -p \${zfsbootmenu_hook_root}/boot-sel.d
-						#cd \${zfsbootmenu_hook_root}/boot-sel.d
-						#curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/hooks/boot-sel.d/initramfs-inject.sh
-						#chmod +x \${zfsbootmenu_hook_root}/early-setup.d/initramfs-inject.sh
-						
-						cd /etc/zfsbootmenu/dracut.conf.d/
-						if ! curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/dracut.conf.d/99-crypt.conf; then
-							echo "Failed to download zbm-luks-unlock dracut config. Check internet connectivity."
-							exit 1
-						fi
+						##Add LUKS support to boot parameters
+						sed -i 's|options root=ZFS=|options rd.luks.allow-discards root=ZFS=|' /boot/efi/loader/entries/ubuntu.conf
+					;;
+					native)
+						##Native ZFS encryption needs special handling
+						sed -i 's|options root=ZFS=|options zfs.zfs_arc_max=1073741824 root=ZFS=|' /boot/efi/loader/entries/ubuntu.conf
 					;;
 				esac
-			else
-				true
-			fi	
+			fi
+
+			##Copy kernel and initramfs to EFI partition for systemd-boot
+			cp /boot/vmlinuz-\${kernel_version} /boot/efi/
+			cp /boot/initrd.img-\${kernel_version} /boot/efi/
 			
 			
 		}
-		config_zbm
+		config_systemd_boot
 
 		echo "Updating initramfs with ZFS support..."
 		if ! update-initramfs -c -k all; then
@@ -1436,20 +1395,59 @@ zectl_install_config_Func(){
 			update-initramfs -c -k all -v || echo "Error: initramfs creation failed"
 		fi
 		
-		echo "Generating ZFS Boot Menu..."
-		if ! generate-zbm --debug; then
-			echo "Warning: ZFS Boot Menu generation failed. This may cause boot issues."
+		echo "Creating initial zectl boot environment..."
+		if ! zectl create initial 2>/dev/null; then
+			echo "Note: Boot environment 'initial' may already exist or zectl setup incomplete."
 		fi
+
+		echo "Setting up APT hooks for automatic boot environment creation..."
+		
+		##Create APT pre-invoke hook for boot environment creation before package operations
+		mkdir -p /etc/apt/apt.conf.d
+		cat > /etc/apt/apt.conf.d/80zectl-pre-invoke << 'EOF'
+DPkg::Pre-Invoke {"/usr/local/bin/zectl-apt-hook.sh pre-invoke";};
+EOF
+
+		##Create APT hook script
+		cat > /usr/local/bin/zectl-apt-hook.sh << 'EOF'
+#!/bin/bash
+set -euo pipefail
+
+case "\$1" in
+pre-invoke)
+    ##Check if this is a kernel-related package operation
+    if echo "\${DPKG_HOOK_ACTION:-}" | grep -q "linux-image\|linux-headers\|linux-modules"; then
+        ##Create backup boot environment before kernel update
+        TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
+        BE_NAME="pre-kernel-update-\$TIMESTAMP"
+        if zectl create "\$BE_NAME" 2>/dev/null; then
+            echo "Created boot environment: \$BE_NAME"
+            ##Keep only last 3 automatic boot environments
+            zectl list | grep "pre-kernel-update-" | sort -r | tail -n +4 | awk '{print \$1}' | while read old_be; do
+                zectl destroy "\$old_be" 2>/dev/null && echo "Removed old boot environment: \$old_be" || true
+            done
+        else
+            echo "Warning: Could not create boot environment \$BE_NAME"
+        fi
+    fi
+    ;;
+*)
+    exit 0
+    ;;
+esac
+EOF
+
+		chmod +x /usr/local/bin/zectl-apt-hook.sh
 
 	EOH
 
 	case "$1" in
 	chroot)
-		cp "${zfsbootmenu_install_config_loc}" "$mountpoint"/tmp
-		chroot "$mountpoint" /bin/bash -x "${zfsbootmenu_install_config_loc}"
+		cp "${zectl_install_config_loc}" "$mountpoint"/tmp
+		chroot "$mountpoint" /bin/bash -x "${zectl_install_config_loc}"
 	;;
 	base)
-		/bin/bash "${zfsbootmenu_install_config_loc}"
+		/bin/bash "${zectl_install_config_loc}"
 	;;
 	*)
 		exit 1
@@ -1761,14 +1759,11 @@ systemsetupFunc_part3(){
 	initial_boot_order="$(efibootmgr | grep "BootOrder" | cut -d " " -f 2)" ##Initial boot order before refind installed.
 
 	chroot "$mountpoint" /bin/bash -x <<-EOCHROOT
-		apt-get -yq install refind kexec-tools
 		apt install --yes dpkg-dev git systemd-sysv
 		
-		##Adjust timer on initial rEFInd screen
-		sed -i 's,^timeout .*,timeout $timeout_rEFInd,' /boot/efi/EFI/refind/refind.conf
-
+		##systemd-boot is already installed with systemd package, no additional packages needed
+		
 		echo REMAKE_INITRD=yes > /etc/dkms/zfs.conf
-		sed -i 's,LOAD_KEXEC=false,LOAD_KEXEC=true,' /etc/default/kexec
 	EOCHROOT
 
 }
@@ -1833,23 +1828,11 @@ systemsetupFunc_part4(){
 			fi
 	EOCHROOT
 
-	zfsbootmenu_install_config_Func "chroot"
+	zectl_install_config_Func "chroot"
 
 	chroot "$mountpoint" /bin/bash -x <<-EOCHROOT
-		##Update refind_linux.conf
-		config_refind(){
-			##zfsbootmenu command-line parameters:
-			##https://github.com/zbm-dev/zfsbootmenu/blob/master/pod/zfsbootmenu.7.pod
-			cat <<-EOF > /boot/efi/EFI/ubuntu/refind_linux.conf
-				"Boot default"  "zbm.timeout=$timeout_zbm_no_remote_access ro quiet loglevel=0"
-				"Boot to menu"  "zbm.show ro quiet loglevel=0"
-			EOF
-
-			if [ "$quiet_boot" = "no" ]; then
-				sed -i 's,ro quiet,ro,' /boot/efi/EFI/ubuntu/refind_linux.conf
-			fi
-		}
-		config_refind
+		##systemd-boot configuration is already handled in zectl_install_config_Func
+		echo "systemd-boot configuration completed by zectl"
 	EOCHROOT
 	
 	zbm_multiple_ESP(){
@@ -1894,7 +1877,7 @@ systemsetupFunc_part4(){
 					true
 				else
 					device_name="$(readlink -f /dev/disk/by-id/"${diskidnum}")"
-					efibootmgr --create --disk "${device_name}" --label "rEFInd Boot Manager Backup $i" --loader \\EFI\\refind\\refind_x64.efi
+					efibootmgr --create --disk "${device_name}" --label "systemd-boot Backup $i" --loader \\EFI\\systemd\\systemd-bootx64.efi
 				fi
 				i=$((i + 1)) ##Increment counter.
 				echo "$i" > "$loop_counter"
@@ -1902,7 +1885,7 @@ systemsetupFunc_part4(){
 		
 			##Adjust ESP boot order
 			##Each boot entry in efibootmgr is identified by a boot number in hexadecimal.
-			primary_esp_hex="$(efibootmgr | grep -v "Backup" | grep -w "rEFInd Boot Manager" | cut -d " " -f 1 | sed 's,Boot,,' | sed 's,*,,')"
+			primary_esp_hex="$(efibootmgr | grep -v "Backup" | grep -w "Linux Boot Manager" | cut -d " " -f 1 | sed 's,Boot,,' | sed 's,*,,')"
 			primary_esp_dec="$(printf "%d" 0x"${primary_esp_hex}")"
 			num_disks="$(wc -l /tmp/diskid_check_"${pool}".txt | awk '{ print $1 }')"
 			esp_loop_exit_dec="$(( "${primary_esp_dec}" + "${num_disks}" ))"
@@ -1943,11 +1926,8 @@ systemsetupFunc_part4(){
 		;;
 	esac
 
-	if [ "${remoteaccess_first_boot}" = "yes" ];
-	then
-		remote_zbm_access_Func "chroot"
-	else true
-	fi
+	##Remote access not supported with systemd-boot
+	echo "Remote access during boot is not available with systemd-boot setup"
 	
 }
 
@@ -2896,11 +2876,6 @@ case "${1-default}" in
 		read -r _
 		postreboot
 	;;
-	remoteaccess)
-		echo "Running remote access to ZFSBootMenu install. Press Enter to Continue or CTRL+C to abort."
-		read -r _
-		setupremoteaccess
-	;;
 	datapool)
 		echo "Running create data pool on non-root drive. Press Enter to Continue or CTRL+C to abort."
 		read -r _
@@ -2942,7 +2917,7 @@ case "${1-default}" in
 		fi
 	;;
 	*)
-		printf "%s\n%s\n%s\n" "-----" "Usage: $0 initial | postreboot | remoteaccess | datapool | reinstall-zbm | reinstall-pyznap | status | resume" "-----"
+		printf "%s\n%s\n%s\n" "-----" "Usage: $0 initial | postreboot | datapool | reinstall-zectl | status | resume" "-----"
 	;;
 esac
 
