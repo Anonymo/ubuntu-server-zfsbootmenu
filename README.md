@@ -40,13 +40,13 @@ Or use this one-liner to install git, clone, setup, and open the editor in one c
 
 	sudo apt install -y git && git clone -b testing https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
 	
-Run the "initial" option of the script.
+Run the "initial" option of the script with sudo privileges.
 
-	./ubuntu_server_encrypted_root_zfs.sh initial
+	sudo ./ubuntu_server_encrypted_root_zfs.sh initial
 
 Reboot after the initial installation completes and login to the new install. Username and password is as set in the script variables. Then run the second part of the script.
 
-	./ubuntu_server_encrypted_root_zfs.sh postreboot
+	sudo ./ubuntu_server_encrypted_root_zfs.sh postreboot
 
 ## Installation Recovery
 
@@ -55,8 +55,8 @@ Reboot after the initial installation completes and login to the new install. Us
 
 If your installation is interrupted (network disconnection, system crash, etc.), you can resume where you left off:
 
-	./ubuntu_server_encrypted_root_zfs.sh status    # Check installation progress
-	./ubuntu_server_encrypted_root_zfs.sh resume    # Resume from last checkpoint
+	sudo ./ubuntu_server_encrypted_root_zfs.sh status    # Check installation progress
+	sudo ./ubuntu_server_encrypted_root_zfs.sh resume    # Resume from last checkpoint
 
 The script automatically detects previous installations and offers to resume when you run the `initial` command.
 
@@ -69,7 +69,7 @@ The script includes an optional feature to provide remote access during boot. Re
 
 Run the following optional part of the script to enable remote access to zfsbootmenu during boot. Guidance on the use of zfsbootmenu can be found at its project website linked in the credits below.
 
-	./ubuntu_server_encrypted_root_zfs.sh remoteaccess
+	sudo ./ubuntu_server_encrypted_root_zfs.sh remoteaccess
 
 </details>
 
@@ -78,7 +78,7 @@ Run the following optional part of the script to enable remote access to zfsboot
 
 The script includes an optional feature to create an encrypted zfs data pool on a non-root drive. The data pool will be unlocked automatically after the root drive password is entered at boot.
 
-	./ubuntu_server_encrypted_root_zfs.sh datapool
+	sudo ./ubuntu_server_encrypted_root_zfs.sh datapool
 
 </details>
 
