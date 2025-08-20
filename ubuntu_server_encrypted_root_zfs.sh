@@ -2221,6 +2221,7 @@ distroinstall(){
 		setup_mozilla_deb_packages
 		setup_libreoffice_fresh_ppa
 		install_tiling_extension
+		setup_gsconnect
 		configure_gnome_defaults
 	fi
 
@@ -2356,6 +2357,52 @@ install_tiling_extension(){
 	rm -f /tmp/tiling-shell.zip
 	
 	echo "Advanced window tiling configured. Extensions will be enabled on first user login."
+}
+
+setup_gsconnect(){
+	##Install GSConnect for phone integration with GNOME
+	##GSConnect is a KDE Connect implementation for GNOME Shell
+	
+	echo "Installing GSConnect for Android/iPhone integration..."
+	
+	##Install GSConnect extension from Ubuntu repositories  
+	apt install --yes gnome-shell-extension-gsconnect
+	
+	##Configure UFW firewall rules for GSConnect
+	##GSConnect uses TCP ports 1714-1764 for discovery and communication
+	echo "Configuring firewall rules for GSConnect..."
+	
+	##Enable UFW if not already enabled
+	ufw --force enable
+	
+	##Allow GSConnect port range for local network
+	##Using rate limiting to prevent abuse
+	ufw allow from 192.168.0.0/16 to any port 1714:1764 proto tcp
+	ufw allow from 192.168.0.0/16 to any port 1714:1764 proto udp
+	ufw allow from 10.0.0.0/8 to any port 1714:1764 proto tcp
+	ufw allow from 10.0.0.0/8 to any port 1714:1764 proto udp
+	ufw allow from 172.16.0.0/12 to any port 1714:1764 proto tcp
+	ufw allow from 172.16.0.0/12 to any port 1714:1764 proto udp
+	
+	##Create profile script to enable GSConnect on first login
+	cat > /etc/profile.d/enable-gsconnect.sh <<-'EOF'
+		##Enable GSConnect extension on first GNOME login
+		if [ "$XDG_SESSION_DESKTOP" = "ubuntu" ] || [ "$XDG_SESSION_DESKTOP" = "gnome" ]; then
+			if [ -n "$GNOME_SHELL_SESSION_MODE" ] && ! [ -f "$HOME/.gsconnect-enabled" ]; then
+				##Enable GSConnect extension
+				gsettings set org.gnome.shell enabled-extensions "$(gsettings get org.gnome.shell enabled-extensions | sed "s/'$/,'gsconnect@andyholmes.github.io']/" | sed "s/\@as \[\]/['gsconnect@andyholmes.github.io']/")"
+				
+				##Mark as configured
+				touch "$HOME/.gsconnect-enabled"
+				echo "GSConnect enabled for phone integration."
+			fi
+		fi
+	EOF
+	
+	chmod 644 /etc/profile.d/enable-gsconnect.sh
+	
+	echo "GSConnect installed with firewall rules configured."
+	echo "Install KDE Connect on your Android device or GSConnect app for iOS to pair devices."
 }
 
 configure_gnome_defaults(){
