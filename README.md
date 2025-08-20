@@ -92,40 +92,46 @@ The script includes an optional feature to create an encrypted zfs data pool on 
 Additional guidance and notes can be found in the script.
 
 <details>
-<summary>1. How do I rollback the system using a snapshot in zfsbootmenu?</summary>
+<summary>1. How do I manage boot environments with zectl?</summary>
 
-You can rollback to a snapshot by doing the following, for example if an upgrade does not work and you wish to revert to a previous state. I recommend testing any changes out in a virtual machine first before rolling them out in a production environment.
-- Reboot and enter zfsbootmenu
-- Select the boot environment and press Ctrl+S to show the snapshots.
-- Select the pre-upgrade snapshot and choose one of the following options. Either option will provide the ability to boot into the system as it was pre-upgrade.
+You can manage boot environments and rollback to previous states using zectl commands. This is useful if an upgrade doesn't work and you wish to revert to a previous state. I recommend testing any changes out in a virtual machine first before rolling them out in a production environment.
 
-  - Press Enter to create a "duplicate" boot environment. Zfsbootmenu will create a new boot environment that is entirely independent of the upgraded boot environment and its snapshots. The down sides of the duplicate option are that:
-    - it requires sufficient disk space to create the duplicate; and
-    - snapshots linked to the previous boot environment will not be duplicated.
-    
-  - Press Ctrl+X to "clone and promote". Zfsbootmenu will create a new boot environment that will have all the snapshot history up to the point the snapshot was created. The new boot environment will consume little additional space. The zfsbootmenu authors recommend the "clone and promote" option to rollback.
+Common zectl operations:
+- `sudo zectl list` - Show all available boot environments
+- `sudo zectl create backup-before-upgrade` - Create a new boot environment before making changes
+- `sudo zectl activate backup-before-upgrade` - Set a different boot environment as default
+- Boot environments are selectable at the systemd-boot menu during startup
+
+To rollback after a failed upgrade:
+1. Reboot and select the previous boot environment from the systemd-boot menu
+2. Once booted into the working environment, run `sudo zectl activate current-environment-name` to make it the default
+3. Optionally, remove the failed boot environment with `sudo zectl destroy failed-environment-name`
 
 </details>
 
 <details>
 <summary>2. How do I delete a boot environment I no longer need?</summary>
 
-You can delete a boot environment you no longer need using "zfs destroy". You can do this by booting into a running system or from zfsbootmenu. Zfsbootmenu will list the root datasets that contain a linux kernel on its main menu. You can make a note of the dataset you want to delete from there or you can use "zfs list" from a command line.
+You can delete a boot environment you no longer need using zectl commands. This can be done from any running boot environment.
 
-- Delete a boot environment from a running system
-    - Use "zfs destroy" to delete the dataset that corresponds to the boot environment. For example, if you want to delete a root dataset called "ubuntu.2022.10.01" then you can enter the command "zfs destroy -r rpool/ROOT/ubuntu.2022.10.01".
+- Delete a boot environment using zectl (recommended):
+  - List boot environments: `sudo zectl list`
+  - Delete the unwanted environment: `sudo zectl destroy environment-name`
+  - Note: You cannot destroy the currently active boot environment
 
-- Delete a boot environment from zfsbootmenu
-  - From the main menu, select the boot environment you want to destroy. Press CTRL+W to re-import the pool as read/write, then CTRL+R to enter the recovery shell. You can then use "zfs destroy" as in the point above. Press CTRL+D to exit the shell and return to the menu when done.
+- Delete a boot environment manually using zfs commands:
+  - List ZFS datasets: `zfs list`
+  - Find the dataset for the boot environment (e.g., "rpool/ROOT/ubuntu.2022.10.01")
+  - Delete it: `sudo zfs destroy -r rpool/ROOT/ubuntu.2022.10.01`
 
 </details>
 
 <details>
 <summary>3. Can I upgrade the system normally using do-release-upgrade?</summary>
 
-- Zfsbootmenu
+- systemd-boot and zectl
 
-  It is possible that upgrading ubuntu will cause a newer zfs version to be installed that is unsupported by zfsbootmenu. The system may not be able to boot if the zfs root pool is upgraded beyond what is supported by zfsbootmenu. Create a test system in a virtual machine first to duplicate your setup and test the upgrade process.
+  Ubuntu release upgrades should work normally with this setup. The systemd-boot bootloader and zectl boot environment manager are maintained as part of Ubuntu and should continue to work with newer ZFS versions. However, it's always recommended to create a test system in a virtual machine first to duplicate your setup and test the upgrade process.
 - Pyznap
 
   Pyznap is not included as a package in the ubuntu repos at present. It may need to be re-compiled and re-installed. You can reference the install script for the relevant code to re-compile and re-install. 
@@ -162,6 +168,8 @@ https://www.reddit.com/r/zfs/comments/mj4nfa/ubuntu_server_2104_native_encrypted
 
 ## Credits
 ahesford E39M5S62/zdykstra (https://github.com/zbm-dev/zfsbootmenu)
+
+zectl (https://github.com/johnramsden/zectl)
 
 cythoning (https://github.com/yboetz/pyznap)
 
