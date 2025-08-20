@@ -2234,20 +2234,17 @@ distroinstall(){
 }
 
 setup_mozilla_deb_packages(){
-	##Replace Firefox and Thunderbird snap packages with Mozilla PPA deb versions
-	##This prevents the problematic snap versions and provides better desktop integration
+	##Replace Firefox snap package with Mozilla PPA deb version
+	##This prevents the problematic snap version and provides better desktop integration
 	
-	echo "Configuring Mozilla Firefox and Thunderbird deb packages instead of snaps..."
+	echo "Configuring Mozilla Firefox deb package instead of snap..."
 	
-	##Remove only Firefox and Thunderbird snap packages if they exist
+	##Remove only Firefox snap package if it exists
 	if snap list 2>/dev/null | grep -q "^firefox "; then
 		snap remove --purge firefox 2>/dev/null || true
 	fi
-	if snap list 2>/dev/null | grep -q "^thunderbird "; then
-		snap remove --purge thunderbird 2>/dev/null || true
-	fi
 	
-	##Add Mozilla Team PPA for both Firefox and Thunderbird
+	##Add Mozilla Team PPA for Firefox
 	add-apt-repository -y ppa:mozillateam/ppa
 	
 	##Configure APT preferences to prioritize Mozilla PPA and prevent Ubuntu snap reinstallation
@@ -2261,6 +2258,7 @@ setup_mozilla_deb_packages(){
 		Pin-Priority: -1
 	EOF
 	
+	##Also configure Thunderbird preferences for future installations
 	cat > /etc/apt/preferences.d/mozilla-thunderbird <<-EOF
 		Package: thunderbird*
 		Pin: release o=LP-PPA-mozillateam
@@ -2273,13 +2271,16 @@ setup_mozilla_deb_packages(){
 	
 	##Update package lists and install Mozilla deb packages
 	apt update
-	apt install --yes --allow-downgrades firefox thunderbird
+	apt install --yes --allow-downgrades firefox
+	
+	##Install Evolution email client and Exchange Web Services support
+	apt install --yes evolution evolution-ews
 	
 	##Verify successful installation
-	if command -v firefox >/dev/null 2>&1 && command -v thunderbird >/dev/null 2>&1; then
-		echo "Mozilla Firefox and Thunderbird deb packages installed successfully."
+	if command -v firefox >/dev/null 2>&1 && command -v evolution >/dev/null 2>&1; then
+		echo "Mozilla Firefox and Evolution email client installed successfully."
 	else
-		echo "Warning: Mozilla package installation may have failed."
+		echo "Warning: Package installation may have failed."
 	fi
 }
 
@@ -2392,6 +2393,11 @@ configure_gnome_defaults(){
 				gsettings set org.gnome.desktop.interface show-battery-percentage true
 				gsettings set org.gnome.desktop.interface clock-show-weekday true
 				gsettings set org.gnome.desktop.privacy report-technical-problems false
+				
+				##Configure Ubuntu dock favorites (taskbar pinning)
+				##Pin: Files, Terminal, Calculator, Firefox, Evolution
+				##Remove: Help (Ubuntu Help)
+				gsettings set org.gnome.shell favorite-apps "['org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop', 'gnome-calculator.desktop', 'firefox.desktop', 'evolution.desktop', 'snap-store_ubuntu-software.desktop', 'org.gnome.Settings.desktop']"
 				
 				##Mark as configured
 				touch "$HOME/.gnome-configured"
