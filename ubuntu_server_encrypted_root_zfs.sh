@@ -80,6 +80,7 @@ remoteaccess_netmask="255.255.255.0" #Remote access subnet mask. Not used for "d
 ubuntu_original="http://archive.ubuntu.com/ubuntu" #Default ubuntu repository.
 install_warning_level="PRIORITY=critical" #"PRIORITY=critical", or "FRONTEND=noninteractive". Pause install to show critical messages only or do not pause (noninteractive). Script still pauses for keyboard selection.
 extra_programs="no" #"yes", or "no". Install additional programs if not included in the ubuntu distro package. Programs: cifs-utils, locate, man-db, openssh-server, tldr.
+luks_iter_time="2000" #PBKDF iteration time in milliseconds for LUKS encryption. Default: 2000. Lower values (e.g. 1000) unlock faster on older hardware but are less secure.
 
 ##Check for root priviliges
 if [ "$(id -u)" -ne 0 ]; then
@@ -651,7 +652,7 @@ create_zpool_Func(){
 					;;
 
 					luks)
-						echo -e "$zpool_password" | cryptsetup -q luksFormat -c aes-xts-plain64 -s 512 -h sha256 /dev/disk/by-id/${diskidnum}${zpool_partition}
+						echo -e "$zpool_password" | cryptsetup -q luksFormat -c aes-xts-plain64 -s 512 -h sha256 --iter-time "$luks_iter_time" /dev/disk/by-id/${diskidnum}${zpool_partition}
 						
 						i="$(cat "$loop_counter")"
 						echo "$i"
@@ -1149,14 +1150,6 @@ zfsbootmenu_install_config_Func(){
 						
 						cd /etc/zfsbootmenu/dracut.conf.d/
 						curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/dracut.conf.d/99-crypt.conf
-						
-						##Create LUKS UUID configuration to help zbm-luks-unlock target specific devices
-						##This prevents zbm from trying to unlock all LUKS devices unnecessarily
-						mkdir -p /etc/zfsbootmenu/luks
-						while IFS= read -r diskidnum; do
-							blkid_luks="\$(blkid -s UUID -o value /dev/disk/by-id/\${diskidnum}-part3)"
-							echo "\${blkid_luks}" >> /etc/zfsbootmenu/luks/luks_uuids.txt
-						done < /tmp/diskid_check_root.txt
 					;;
 				esac
 			else
