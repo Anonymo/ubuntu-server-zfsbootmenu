@@ -102,6 +102,31 @@ then
 	if [ -z $zfs_root_encrypt ];
 	then
 		echo "Password entered but no encryption method defined. Please define the zfs_root_encrypt variable."
+		exit 1
+	else true
+	fi
+else true
+fi
+
+##Check password length requirements
+if [ -n "$zfs_root_password" ];
+then
+	if [ ${#zfs_root_password} -lt 8 ];
+	then
+		echo "Root pool password must be at least 8 characters long."
+		exit 1
+	else true
+	fi
+else true
+fi
+
+##Check data pool encryption defined if password defined
+if [ -n "$zfs_data_password" ];
+then
+	if [ -z $zfs_data_encrypt ];
+	then
+		echo "Data pool password entered but no encryption method defined. Please define the zfs_data_encrypt variable."
+		exit 1
 	else true
 	fi
 else true
@@ -228,6 +253,7 @@ connectivity_check(){
 		exit 1
 	fi
 }
+
 
 getdiskID(){
 	pool="$1"
