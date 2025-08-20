@@ -775,7 +775,12 @@ update_crypttab_Func(){
 		done < /tmp/diskid_check_"${pool}".txt
 		
 		##https://cryptsetup-team.pages.debian.net/cryptsetup/README.initramfs.html
+		##Enable keyfile pattern for cryptsetup-initramfs
 		sed -i 's,#KEYFILE_PATTERN=,KEYFILE_PATTERN="/etc/cryptsetup-keys.d/*.key",' /etc/cryptsetup-initramfs/conf-hook
+		
+		##Configure cryptsetup to skip asking for passphrase if keyfile exists
+		##This prevents double-prompting when zbm-luks-unlock has already unlocked devices
+		echo 'CRYPTSETUP="cryptsetup --key-file=/etc/cryptsetup-keys.d/$RPOOL.key"' >> /etc/cryptsetup-initramfs/conf-hook
 
 	EOH
 
