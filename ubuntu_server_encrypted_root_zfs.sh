@@ -2253,7 +2253,7 @@ setup_mozilla_deb_packages(){
 	
 	##Update package lists and install Mozilla deb packages
 	apt update
-	apt install --yes firefox thunderbird
+	apt install --yes --allow-downgrades firefox thunderbird
 	
 	##Verify successful installation
 	if command -v firefox >/dev/null 2>&1 && command -v thunderbird >/dev/null 2>&1; then
