@@ -2152,6 +2152,7 @@ distroinstall(){
 		setup_mozilla_deb_packages
 		setup_libreoffice_fresh_ppa
 		install_tiling_extension
+		configure_gnome_defaults
 	fi
 
 }
@@ -2285,6 +2286,47 @@ install_tiling_extension(){
 	rm -f /tmp/tiling-shell.zip
 	
 	echo "Advanced window tiling configured. Extensions will be enabled on first user login."
+}
+
+configure_gnome_defaults(){
+	##Configure GNOME desktop environment with better defaults
+	##Only applies to GNOME-based desktop installations
+	
+	echo "Configuring GNOME desktop with improved defaults..."
+	
+	##Create configuration script for first boot GNOME settings
+	cat > /etc/profile.d/configure-gnome.sh <<-'EOF'
+		##Configure GNOME desktop defaults on first login
+		if [ "$XDG_SESSION_DESKTOP" = "ubuntu" ] || [ "$XDG_SESSION_DESKTOP" = "gnome" ]; then
+			if [ -n "$GNOME_SHELL_SESSION_MODE" ] && ! [ -f "$HOME/.gnome-configured" ]; then
+				##Enable dark mode
+				gsettings set org.gnome.desktop.interface gtk-theme 'Yaru-dark'
+				gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+				
+				##Set Nautilus to list view by default
+				gsettings set org.gnome.nautilus.preferences default-folder-viewer 'list-view'
+				gsettings set org.gnome.nautilus.list-view default-zoom-level 'small'
+				
+				##Enable night light with comfortable settings
+				gsettings set org.gnome.settings-daemon.plugins.color night-light-enabled true
+				gsettings set org.gnome.settings-daemon.plugins.color night-light-temperature 4000
+				gsettings set org.gnome.settings-daemon.plugins.color night-light-schedule-automatic true
+				
+				##Additional comfort improvements
+				gsettings set org.gnome.desktop.interface show-battery-percentage true
+				gsettings set org.gnome.desktop.interface clock-show-weekday true
+				gsettings set org.gnome.desktop.privacy report-technical-problems false
+				
+				##Mark as configured
+				touch "$HOME/.gnome-configured"
+				echo "GNOME desktop configured with dark theme, list view, and night light."
+			fi
+		fi
+	EOF
+	
+	chmod 644 /etc/profile.d/configure-gnome.sh
+	
+	echo "GNOME configuration script installed. Settings will apply on first user login."
 }
 
 NetworkManager_config(){
