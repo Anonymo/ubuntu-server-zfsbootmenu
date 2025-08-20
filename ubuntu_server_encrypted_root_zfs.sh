@@ -2232,6 +2232,7 @@ distroinstall(){
 		case "$distro_variant" in
 			kubuntu)
 				setup_kubuntu_unity_theme
+				install_kde_tiling_extension
 			;;
 			desktop)
 				install_tiling_extension
@@ -2750,6 +2751,78 @@ setup_kubuntu_unity_theme(){
 	echo "Ubuntu Unity global theme created for Kubuntu."
 	echo "Theme will be applied automatically on first KDE login."
 	echo "You can switch themes anytime in System Settings > Appearance > Global Theme"
+}
+
+install_kde_tiling_extension(){
+	##Install Bismuth tiling extension for KDE Plasma
+	##Provides automatic window tiling similar to i3/dwm for KDE
+	
+	echo "Installing Bismuth window tiling extension for KDE..."
+	
+	##Install Bismuth from Ubuntu repositories if available
+	if apt search bismuth 2>/dev/null | grep -q "bismuth.*kwin"; then
+		apt install --yes kwin-bismuth
+	else
+		##Install via alternative method for older Ubuntu versions
+		echo "Installing Bismuth via alternative source..."
+		
+		##Install required dependencies
+		apt install --yes git cmake extra-cmake-modules qttools5-dev-tools libkf5configwidgets-dev libkf5globalaccel-dev libkf5i18n-dev libkf5kio-dev libkf5declarative-dev
+		
+		##Clone and build Bismuth from source
+		cd /tmp
+		git clone https://github.com/Bismuth-Forge/bismuth.git
+		cd bismuth
+		
+		##Build and install
+		mkdir build
+		cd build
+		cmake -DCMAKE_INSTALL_PREFIX=/usr ..
+		make
+		make install
+		
+		cd /
+		rm -rf /tmp/bismuth
+	fi
+	
+	##Create profile script to configure Bismuth on first login
+	cat > /etc/profile.d/configure-kde-tiling.sh <<-'EOF'
+		#!/bin/bash
+		##Configure KDE Bismuth tiling extension on first login
+		
+		if [ "$XDG_CURRENT_DESKTOP" = "KDE" ] && [ "$USER" != "root" ] && ! [ -f "$HOME/.bismuth-configured" ]; then
+			##Wait for KDE to fully load
+			sleep 5
+			
+			##Enable Bismuth KWin script
+			if command -v kwriteconfig5 >/dev/null 2>&1; then
+				##Enable Bismuth script
+				kwriteconfig5 --file kwinrc --group Plugins --key bismuthEnabled true
+				
+				##Configure basic Bismuth settings
+				kwriteconfig5 --file bismuthrc --group general --key layoutPerActivity false
+				kwriteconfig5 --file bismuthrc --group general --key layoutPerDesktop false
+				kwriteconfig5 --file bismuthrc --group general --key monocleMaximize false
+				
+				##Set up basic keybindings (optional)
+				kwriteconfig5 --file kglobalshortcutsrc --group bismuth --key "toggle_window_floating" "Meta+F,none,Toggle Window Floating"
+				kwriteconfig5 --file kglobalshortcutsrc --group bismuth --key "push_window_up" "Meta+Shift+K,none,Push Active Window Up"
+				kwriteconfig5 --file kglobalshortcutsrc --group bismuth --key "push_window_down" "Meta+Shift+J,none,Push Active Window Down"
+				
+				##Restart KWin to apply changes
+				qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
+				
+				##Mark as configured
+				touch "$HOME/.bismuth-configured"
+				echo "KDE Bismuth tiling extension configured successfully."
+			fi
+		fi
+	EOF
+	
+	chmod 755 /etc/profile.d/configure-kde-tiling.sh
+	
+	echo "Bismuth tiling extension installed. Tiling features will be enabled on first KDE login."
+	echo "Use Meta+T to toggle tiling, Meta+F to toggle window floating."
 }
 
 NetworkManager_config(){
