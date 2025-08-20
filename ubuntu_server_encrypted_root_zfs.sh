@@ -692,7 +692,10 @@ create_zpool_Func(){
 					;;
 
 					luks)
-						echo -e "$zpool_password" | cryptsetup -q luksFormat -c aes-xts-plain64 -s 512 -h sha256 --iter-time "$luks_iter_time" /dev/disk/by-id/${diskidnum}${zpool_partition}
+						if ! echo -e "$zpool_password" | cryptsetup -q luksFormat -c aes-xts-plain64 -s 512 -h sha256 --iter-time "$luks_iter_time" /dev/disk/by-id/${diskidnum}${zpool_partition}; then
+							echo "LUKS formatting failed on /dev/disk/by-id/${diskidnum}${zpool_partition}. Check disk availability."
+							exit 1
+						fi
 						
 						i="$(cat "$loop_counter")"
 						echo "$i"
@@ -706,7 +709,10 @@ create_zpool_Func(){
 							luks_dmname=${luks_dmname_base}$i
 						done
 						
-						echo -e "$zpool_password" | cryptsetup luksOpen /dev/disk/by-id/${diskidnum}${zpool_partition} "${luks_dmname}"
+						if ! echo -e "$zpool_password" | cryptsetup luksOpen /dev/disk/by-id/${diskidnum}${zpool_partition} "${luks_dmname}"; then
+							echo "LUKS unlock failed on /dev/disk/by-id/${diskidnum}${zpool_partition}. Check password and disk availability."
+							exit 1
+						fi
 						printf "%s\n" "${luks_dmname}" >> /tmp/luks_dmname_"${pool}".txt
 						
 						echo "/dev/mapper/${luks_dmname} \\" >> "$zpool_create_temp"
@@ -766,7 +772,10 @@ create_zpool_Func(){
 	esac
 	
 	echo "Creating ZFS $pool pool. This may take a few minutes..."
-	echo "$zpool_password" | sh "$zpool_create_temp"
+	if ! echo "$zpool_password" | sh "$zpool_create_temp"; then
+		echo "ZFS $pool pool creation failed. Check disk availability and partition table."
+		exit 1
+	fi
 	echo "ZFS $pool pool creation completed." 
 }
 
@@ -1072,7 +1081,10 @@ debootstrap_installminsys_Func(){
 	fi
 	
 	echo "Installing base system with debootstrap. This may take several minutes..."
-	debootstrap "$ubuntuver" "$mountpoint"
+	if ! debootstrap "$ubuntuver" "$mountpoint"; then
+		echo "Debootstrap installation failed. Check network connectivity and disk space."
+		exit 1
+	fi
 	echo "Base system installation completed."
 }
 
@@ -1186,7 +1198,10 @@ zfsbootmenu_install_config_Func(){
 						
 						mkdir -p \${zfsbootmenu_hook_root}/early-setup.d
 						cd \${zfsbootmenu_hook_root}/early-setup.d
-						curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/hooks/early-setup.d/luks-unlock.sh
+						if ! curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/hooks/early-setup.d/luks-unlock.sh; then
+							echo "Failed to download zbm-luks-unlock hook. Check internet connectivity."
+							exit 1
+						fi
 						chmod +x \${zfsbootmenu_hook_root}/early-setup.d/luks-unlock.sh
 						
 						#mkdir -p \${zfsbootmenu_hook_root}/boot-sel.d
@@ -1195,7 +1210,10 @@ zfsbootmenu_install_config_Func(){
 						#chmod +x \${zfsbootmenu_hook_root}/early-setup.d/initramfs-inject.sh
 						
 						cd /etc/zfsbootmenu/dracut.conf.d/
-						curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/dracut.conf.d/99-crypt.conf
+						if ! curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/dracut.conf.d/99-crypt.conf; then
+							echo "Failed to download zbm-luks-unlock dracut config. Check internet connectivity."
+							exit 1
+						fi
 					;;
 				esac
 			else
