@@ -30,9 +30,9 @@ Edit the variables in the ubuntu_server_encrypted_root_zfs.sh file to your prefe
 
 	nano ubuntu_server_encrypted_root_zfs.sh
 
-Or use this one-liner to clone, setup, and open the editor in one command:
+Or use this one-liner to install git, clone, setup, and open the editor in one command:
 
-	git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
+	sudo apt update && sudo apt install -y git && git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
 	
 Run the "initial" option of the script.
 
