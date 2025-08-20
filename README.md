@@ -22,7 +22,7 @@ Snapshots allow you to rollback your system to a previous state if there is a pr
 ## Usage
 Boot the system with an Ubuntu live desktop iso. Use an Ubuntu iso to boot from even if installing a different Ubuntu flavour such as Kubuntu. Start the terminal (Ctrl+Alt+T) and enter the following.
 
-	git clone https://github.com/Sithuk/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
+	git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
     cd ~/ubuntu-server-zfsbootmenu
     chmod +x ubuntu_server_encrypted_root_zfs.sh
 	
