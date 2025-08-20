@@ -1,8 +1,8 @@
-# Ubuntu zfsbootmenu install script
+# Ubuntu ZFS with zectl install script
 
-This script creates an Ubuntu installation using the ZFS filesystem. The installation has integrated snapshot management using pyznap. Snapshots can be rolled back remotely at boot over ssh using zfsbootmenu. This is useful where there is no physical access to the machine.
+This script creates an Ubuntu installation using the ZFS filesystem with zectl boot environment management and systemd-boot. The installation has integrated snapshot management using pyznap. Boot environments can be managed using zectl for easy rollback and system recovery.
 
-Snapshots allow you to rollback your system to a previous state if there is a problem. The system automatically creates snapshots on a timer and also when the system is updated with apt. Snapshots are pruned over time to keep fewer older snapshots.
+Boot environments and snapshots allow you to rollback your system to a previous state if there is a problem. The system automatically creates snapshots on a timer and also when the system is updated with apt. Boot environments can be created and managed using zectl. Snapshots are pruned over time to keep fewer older snapshots.
 
 <details>
 <summary><strong>Supported Features</strong></summary>
@@ -12,9 +12,9 @@ Snapshots allow you to rollback your system to a previous state if there is a pr
 - Choose from: Ubuntu Server, Ubuntu Desktop, Kubuntu, Xubuntu, Budgie, and Ubuntu MATE.
 - Single, mirror, raid0, raidz1, raidz2, and raidz3 topologies.
 - LUKS and native ZFS encryption.
-- Remote unlocking of encrypted pools at boot over SSH.
-- Automated system snapshots taken on a timer and also on system updates. 
-- Remote rollback of snapshots at boot for system recovery over SSH.
+- systemd-boot bootloader with clean, simple interface.
+- zectl boot environment management for easy system rollback.
+- Automated system snapshots taken on a timer and also on system updates.
 - Creation of a separate encrypted data pool (single/mirror/raidz).
 
 </details>
@@ -28,7 +28,7 @@ First install git (Ubuntu live CD doesn't include it by default):
 
 Then clone the repository:
 
-	git clone -b testing https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
+	git clone -b zectl https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
     cd ~/ubuntu-server-zfsbootmenu
     chmod +x ubuntu_server_encrypted_root_zfs.sh
 	
@@ -38,7 +38,7 @@ Edit the variables in the ubuntu_server_encrypted_root_zfs.sh file to your prefe
 
 Or use this one-liner to install git, clone, setup, and open the editor in one command:
 
-	sudo apt install -y git && git clone -b testing https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
+	sudo apt install -y git && git clone -b zectl https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
 	
 Run the "initial" option of the script with sudo privileges.
 
@@ -63,13 +63,17 @@ The script automatically detects previous installations and offers to resume whe
 </details>
 
 <details>
-<summary><strong>Optional: Remote access during boot</strong></summary>
+<summary><strong>Boot Environment Management</strong></summary>
 
-The script includes an optional feature to provide remote access during boot. Remote access over ssh allows the system state to be rolled back to a previous snapshot without physical access to the system. This is helpful to return a system to a bootable state following a failed upgrade.
+This installation uses zectl for boot environment management with systemd-boot. Boot environments allow you to create snapshots of your entire system that can be booted independently.
 
-Run the following optional part of the script to enable remote access to zfsbootmenu during boot. Guidance on the use of zfsbootmenu can be found at its project website linked in the credits below.
+Common zectl commands after installation:
+- `sudo zectl create new-environment` - Create a new boot environment
+- `sudo zectl list` - List all boot environments  
+- `sudo zectl activate new-environment` - Set boot environment as default
+- `sudo zectl destroy old-environment` - Remove unused boot environment
 
-	sudo ./ubuntu_server_encrypted_root_zfs.sh remoteaccess
+Note: Boot environment selection is done at the systemd-boot menu during startup. Remote SSH access during boot is not available with this setup.
 
 </details>
 
