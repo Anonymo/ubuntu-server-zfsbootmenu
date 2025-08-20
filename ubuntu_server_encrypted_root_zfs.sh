@@ -350,12 +350,44 @@ getdiskID(){
 		##Get basic disk list
 		ls -la /dev/disk/by-id | awk '{ print $9, $11 }' | sed -e '1,3d' | grep -v "part\|CD-ROM" > "$diskidmenu_loc"
 		
-		##Enhance with size and type information
+		##Enhance with size and type information, filter problematic devices
 		echo "" > "$enhanced_diskidmenu_loc"
 		while IFS=' ' read -r diskid symlink; do
 			if [ -n "$diskid" ] && [ -n "$symlink" ]; then
 				##Extract device name from symlink
 				device_name=$(basename "$symlink")
+				
+				##Skip this device if it's problematic for datapool
+				skip_device=false
+				if [ "$pool" = "data" ]; then
+					##Check if device is removable (USB, etc.)
+					if [ -r "/sys/block/$device_name/removable" ]; then
+						removable=$(cat "/sys/block/$device_name/removable" 2>/dev/null || echo "0")
+						if [ "$removable" = "1" ]; then
+							echo "Skipping removable device: $diskid ($device_name)" >&2
+							skip_device=true
+						fi
+					fi
+					
+					##Check if device is busy/mounted
+					if lsblk "/dev/$device_name" 2>/dev/null | grep -q "MOUNTPOINT\|SWAP"; then
+						if lsblk "/dev/$device_name" -o MOUNTPOINT | grep -qv "^\s*$"; then
+							echo "Skipping busy/mounted device: $diskid ($device_name)" >&2
+							skip_device=true
+						fi
+					fi
+					
+					##Skip USB devices based on ID pattern
+					if [[ "$diskid" =~ usb ]] || [[ "$diskid" =~ ventoy ]]; then
+						echo "Skipping USB/Ventoy device: $diskid" >&2
+						skip_device=true
+					fi
+				fi
+				
+				if [ "$skip_device" = "true" ]; then
+					continue
+				fi
+				
 				##Get size if available
 				if [ -r "/sys/block/$device_name/size" ]; then
 					size_sectors=$(cat "/sys/block/$device_name/size" 2>/dev/null || echo "0")
@@ -382,9 +414,21 @@ getdiskID(){
 		echo "=== DISK SELECTION ==="
 		echo "Selecting disk $diskidnum of $total_discs for $pool pool"
 		echo "WARNING: Selected disk(s) will be COMPLETELY ERASED!"
+		
+		if [ "$pool" = "data" ]; then
+			echo ""
+			echo "NOTE: USB drives, removable devices, and busy/mounted disks are automatically excluded for data pool."
+		fi
+		
 		echo ""
 		echo "Available disks:"
-		nl "$enhanced_diskidmenu_loc" | sed 's/^/  /'
+		if [ -s "$enhanced_diskidmenu_loc" ]; then
+			nl "$enhanced_diskidmenu_loc" | sed 's/^/  /'
+		else
+			echo "  No suitable disks found for $pool pool installation!"
+			echo "  Make sure you have available, unmounted disks that are not USB/removable."
+			exit 1
+		fi
 		echo ""
 		count="$(wc -l "$diskidmenu_loc" | cut -f 1 -d' ')"
 		n=""
