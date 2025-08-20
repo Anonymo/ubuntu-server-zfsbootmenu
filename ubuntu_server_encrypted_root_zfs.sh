@@ -568,18 +568,43 @@ apt_mirror_source(){
 	identify_apt_data_sources
 	
 	identify_apt_mirror(){
-		##Identify fastest mirror.
-		echo "Choosing fastest up-to-date ubuntu mirror based on download speed."
+		##Identify fastest mirror with improved testing methodology.
+		echo "Choosing fastest up-to-date ubuntu mirror based on comprehensive performance testing."
 		apt update
 		apt install -y curl
+		
+		##Test larger sample and consider both latency and throughput
+		##Install bc for calculations, fallback to simpler method if unavailable
+		apt install -y bc 2>/dev/null || echo "bc unavailable, using simplified mirror selection"
+		
 		ubuntu_mirror=$({
 		##Choose mirrors that are up-to-date by checking the Last-Modified header.
 		##https://github.com/actions/runner-images/issues/675#issuecomment-1381837292
 		{
-		curl -s http://mirrors.ubuntu.com/"${mirror_archive}".txt | shuf -n 20
-		} | xargs -I {} sh -c 'echo "$(curl -m 5 -sI {}dists/$(lsb_release -c | cut -f2)-security/Contents-$(dpkg --print-architecture).gz | sed s/\\r\$//|grep Last-Modified|awk -F": " "{ print \$2 }" | LANG=C date -f- -u +%s)" "{}"' | sort -rg | awk '{ if (NR==1) TS=$1; if ($1 == TS) print $2 }'
-		} | xargs -I {} sh -c 'echo "$(curl -r 0-102400 -m 5 -s -w %{speed_download} -o /dev/null {}ls-lR.gz)" {}' \
-		| sort -g -r | head -1 | awk '{ print $2  }')
+		curl -s http://mirrors.ubuntu.com/"${mirror_archive}".txt | shuf -n 30
+		} | xargs -I {} sh -c 'echo "$(curl -m 8 -sI {}dists/$(lsb_release -c | cut -f2)-security/Contents-$(dpkg --print-architecture).gz | sed s/\\r\$//|grep Last-Modified|awk -F": " "{ print \$2 }" | LANG=C date -f- -u +%s)" "{}"' | sort -rg | awk '{ if (NR==1) TS=$1; if ($1 == TS) print $2 }' | head -15
+		} | xargs -I {} sh -c '
+			##Test both response time and download speed with larger sample
+			latency=$(curl -m 3 -s -w %{time_connect} -o /dev/null {} 2>/dev/null || echo "999")
+			speed=$(curl -r 0-524288 -m 8 -s -w %{speed_download} -o /dev/null {}ls-lR.gz 2>/dev/null || echo "0")
+			
+			if [ "$latency" != "999" ] && [ "$speed" != "0" ]; then
+				##Try advanced scoring with bc, fallback to simple speed-based selection
+				if command -v bc >/dev/null 2>&1; then
+					latency_ms=$(echo "$latency * 1000" | bc -l 2>/dev/null || echo "999")
+					##Combined score: speed divided by latency penalty (higher is better)
+					score=$(echo "scale=2; $speed / (1 + $latency_ms/100)" | bc -l 2>/dev/null || echo "$speed")
+				else
+					##Fallback: just use speed, but penalize high latency
+					if [ "$(echo "$latency > 0.5" | bc -l 2>/dev/null || [ "${latency%.*}" -gt 0 ] && echo 1 || echo 0)" = "1" ]; then
+						score=$(echo "$speed / 2" | bc -l 2>/dev/null || echo "${speed%.*}")
+					else
+						score=$speed
+					fi
+				fi
+				echo "$score {} $latency $speed"
+			fi
+		' | sort -g -r | head -1 | awk '{ print $2 }')
 	}
 	identify_apt_mirror
 
