@@ -7,7 +7,7 @@ Snapshots allow you to rollback your system to a previous state if there is a pr
 <details>
 <summary><strong>Supported Features</strong></summary>
 
-- Ubuntu 22.04, 24.04.
+- Ubuntu 22.04 LTS, 24.04 LTS, 24.10.
 - Root filesystem on ZFS.
 - Choose from: Ubuntu Server, Ubuntu Desktop, Kubuntu, Xubuntu, Budgie, and Ubuntu MATE.
 - Single, mirror, raid0, raidz1, raidz2, and raidz3 topologies.
