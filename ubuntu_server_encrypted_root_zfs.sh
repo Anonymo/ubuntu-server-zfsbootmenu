@@ -1149,6 +1149,14 @@ zfsbootmenu_install_config_Func(){
 						
 						cd /etc/zfsbootmenu/dracut.conf.d/
 						curl -L -O https://raw.githubusercontent.com/agorgl/zbm-luks-unlock/master/dracut.conf.d/99-crypt.conf
+						
+						##Create LUKS UUID configuration to help zbm-luks-unlock target specific devices
+						##This prevents zbm from trying to unlock all LUKS devices unnecessarily
+						mkdir -p /etc/zfsbootmenu/luks
+						while IFS= read -r diskidnum; do
+							blkid_luks="\$(blkid -s UUID -o value /dev/disk/by-id/\${diskidnum}-part3)"
+							echo "\${blkid_luks}" >> /etc/zfsbootmenu/luks/luks_uuids.txt
+						done < /tmp/diskid_check_root.txt
 					;;
 				esac
 			else
