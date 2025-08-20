@@ -38,7 +38,7 @@ set -euo pipefail
 ##zfs mount -a #Mount all datasets.
 
 ##Variables:
-ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (25.04). "plucky" (25.10).
+ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (24.10).
 distro_variant="server" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant).
 user="testuser" #Username for new install.
 PASSWORD="testuser" #Password for user in new install.
