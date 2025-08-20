@@ -1314,11 +1314,21 @@ zectl_install_config_Func(){
 			cd /usr/local/src/zectl
 
 			##Download zectl from johnramsden repository
-			git clone https://github.com/johnramsden/zectl .
+			if ! git clone https://github.com/johnramsden/zectl .; then
+				echo "Error: Failed to clone zectl repository"
+				exit 1
+			fi
 
 			##Build zectl
-			make
-			make install
+			if ! make; then
+				echo "Error: zectl build failed"
+				exit 1
+			fi
+			
+			if ! make install; then
+				echo "Error: zectl installation failed"
+				exit 1
+			fi
 
 			##Verify zectl installation
 			if ! command -v zectl >/dev/null 2>&1; then
@@ -1333,7 +1343,10 @@ zectl_install_config_Func(){
 		config_systemd_boot(){
 			
 			##Install systemd-boot to EFI System Partition
-			bootctl install
+			if ! bootctl install; then
+				echo "Error: systemd-boot installation failed"
+				exit 1
+			fi
 
 			##Get the root filesystem for boot configuration
 			root_dataset="\$(zfs get -H -o value mountpoint rpool/ROOT/ubuntu | grep -E '^/$')"
@@ -2276,7 +2289,7 @@ setup_libreoffice_fresh_ppa(){
 	apt update
 	
 	##Upgrade existing LibreOffice installation to PPA version
-	apt upgrade --yes libreoffice*
+	apt upgrade --yes --allow-downgrades libreoffice*
 	
 	echo "LibreOffice Fresh PPA configured. System will receive latest LibreOffice updates."
 }
