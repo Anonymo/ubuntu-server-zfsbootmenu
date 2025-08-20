@@ -24,7 +24,7 @@ Boot the system with an Ubuntu live desktop iso. Use an Ubuntu iso to boot from 
 
 First install git (Ubuntu live CD doesn't include it by default):
 
-	sudo apt update && sudo apt install -y git
+	sudo apt install -y git
 
 Then clone the repository:
 
@@ -38,7 +38,7 @@ Edit the variables in the ubuntu_server_encrypted_root_zfs.sh file to your prefe
 
 Or use this one-liner to install git, clone, setup, and open the editor in one command:
 
-	sudo apt update && sudo apt install -y git && git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
+	sudo apt install -y git && git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
 	
 Run the "initial" option of the script.
 
