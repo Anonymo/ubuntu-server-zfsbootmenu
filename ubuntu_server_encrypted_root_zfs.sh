@@ -1291,9 +1291,9 @@ debootstrap_installminsys_Func(){
 	echo "Base system installation completed."
 }
 
-zfsbootmenu_install_config_Func(){
-	zfsbootmenu_install_config_loc="/tmp/zfsbootmenu_install_config.sh"
-	cat <<-EOH >"${zfsbootmenu_install_config_loc}"
+zectl_install_config_Func(){
+	zectl_install_config_loc="/tmp/zectl_install_config.sh"
+	cat <<-EOH >"${zectl_install_config_loc}"
 		#!/bin/bash
 		set -euo pipefail
 		set -x
