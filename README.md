@@ -36,13 +36,13 @@ Edit the variables in the ubuntu_server_encrypted_root_zfs.sh file to your prefe
 
 	nano ubuntu_server_encrypted_root_zfs.sh
 	
-Run the "initial" option of the script.
+Run the "initial" option of the script with sudo privileges.
 
-	./ubuntu_server_encrypted_root_zfs.sh initial
+	sudo ./ubuntu_server_encrypted_root_zfs.sh initial
 
 Reboot after the initial installation completes and login to the new install. Username and password is as set in the script variables. Then run the second part of the script.
 
-	./ubuntu_server_encrypted_root_zfs.sh postreboot
+	sudo ./ubuntu_server_encrypted_root_zfs.sh postreboot
 
 <details>
 <summary><strong>Optional: Remote access during boot</strong></summary>
@@ -51,7 +51,7 @@ The script includes an optional feature to provide remote access during boot. Re
 
 Run the following optional part of the script to enable remote access to zfsbootmenu during boot. Guidance on the use of zfsbootmenu can be found at its project website linked in the credits below.
 
-	./ubuntu_server_encrypted_root_zfs.sh remoteaccess
+	sudo ./ubuntu_server_encrypted_root_zfs.sh remoteaccess
 
 </details>
 
@@ -60,7 +60,7 @@ Run the following optional part of the script to enable remote access to zfsboot
 
 The script includes an optional feature to create an encrypted zfs data pool on a non-root drive. The data pool will be unlocked automatically after the root drive password is entered at boot.
 
-	./ubuntu_server_encrypted_root_zfs.sh datapool
+	sudo ./ubuntu_server_encrypted_root_zfs.sh datapool
 
 </details>
 
