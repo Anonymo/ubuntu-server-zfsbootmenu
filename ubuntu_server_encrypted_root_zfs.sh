@@ -110,6 +110,17 @@ if [ "$available_tmp_space" -lt 1048576 ]; then
 	echo "Available /tmp space: $(($available_tmp_space / 1024))MB. Please ensure adequate space."
 fi
 
+##Show basic system information
+echo "System information:"
+echo "CPU: $(grep 'model name' /proc/cpuinfo | head -1 | cut -d':' -f2 | sed 's/^ *//')"
+echo "Total RAM: $(grep MemTotal /proc/meminfo | awk '{printf "%.1fGB", $2/1024/1024}')"
+echo "Architecture: $(uname -m)"
+if [ -d /sys/firmware/efi ]; then
+	echo "Boot mode: UEFI"
+else
+	echo "Boot mode: Legacy BIOS"
+fi
+
 ##Check encryption defined if password defined
 if [ -n "$zfs_root_password" ];
 then	
@@ -285,10 +296,42 @@ getdiskID(){
 	
 	menu_read(){
 		diskidmenu_loc="/tmp/diskidmenu.txt"
+		enhanced_diskidmenu_loc="/tmp/enhanced_diskidmenu.txt"
+		
+		##Get basic disk list
 		ls -la /dev/disk/by-id | awk '{ print $9, $11 }' | sed -e '1,3d' | grep -v "part\|CD-ROM" > "$diskidmenu_loc"
 		
+		##Enhance with size and type information
+		echo "" > "$enhanced_diskidmenu_loc"
+		while IFS=' ' read -r diskid symlink; do
+			if [ -n "$diskid" ] && [ -n "$symlink" ]; then
+				##Extract device name from symlink
+				device_name=$(basename "$symlink")
+				##Get size if available
+				if [ -r "/sys/block/$device_name/size" ]; then
+					size_sectors=$(cat "/sys/block/$device_name/size" 2>/dev/null || echo "0")
+					size_gb=$((size_sectors * 512 / 1000000000))
+					size_info="${size_gb}GB"
+				else
+					size_info="unknown"
+				fi
+				##Detect drive type
+				if [[ "$diskid" =~ nvme ]]; then
+					type_info="NVMe"
+				elif [[ "$diskid" =~ usb ]]; then
+					type_info="USB"
+				elif [[ "$diskid" =~ ata ]]; then
+					type_info="SATA"
+				else
+					type_info="other"
+				fi
+				echo "$diskid -> $symlink ($type_info, $size_info)" >> "$enhanced_diskidmenu_loc"
+			fi
+		done < "$diskidmenu_loc"
+		
 		echo "Please enter Disk ID option for disk $diskidnum of $total_discs on $pool pool."
-		nl "$diskidmenu_loc"
+		echo "Available disks with type and size information:"
+		nl "$enhanced_diskidmenu_loc"
 		count="$(wc -l "$diskidmenu_loc" | cut -f 1 -d' ')"
 		n=""
 		while true; 
