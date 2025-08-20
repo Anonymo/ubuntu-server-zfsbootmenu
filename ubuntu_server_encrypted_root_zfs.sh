@@ -378,9 +378,14 @@ getdiskID(){
 			fi
 		done < "$diskidmenu_loc"
 		
-		echo "Please enter Disk ID option for disk $diskidnum of $total_discs on $pool pool."
-		echo "Available disks with type and size information:"
-		nl "$enhanced_diskidmenu_loc"
+		echo ""
+		echo "=== DISK SELECTION ==="
+		echo "Selecting disk $diskidnum of $total_discs for $pool pool"
+		echo "WARNING: Selected disk(s) will be COMPLETELY ERASED!"
+		echo ""
+		echo "Available disks:"
+		nl "$enhanced_diskidmenu_loc" | sed 's/^/  /'
+		echo ""
 		count="$(wc -l "$diskidmenu_loc" | cut -f 1 -d' ')"
 		n=""
 		while true; 
@@ -455,7 +460,27 @@ clear_partition_table(){
 	while IFS= read -r diskidnum;
 	do
 		echo "Clearing partition table on disk ${diskidnum}."
+		
+		##Force unmount any mounted filesystems on this disk
+		umount /dev/disk/by-id/"${diskidnum}"* 2>/dev/null || true
+		
+		##Stop any processes that might be using the disk
+		fuser -km /dev/disk/by-id/"${diskidnum}" 2>/dev/null || true
+		
+		##Remove from any existing RAID arrays
+		mdadm --stop --scan 2>/dev/null || true
+		mdadm --remove /dev/disk/by-id/"${diskidnum}"* 2>/dev/null || true
+		
+		##Clear ZFS labels and partition signatures
+		wipefs -af /dev/disk/by-id/"${diskidnum}" 2>/dev/null || true
+		
+		##Clear partition table
 		sgdisk --zap-all /dev/disk/by-id/"$diskidnum"
+		
+		##Clear any remaining filesystem signatures on partitions
+		wipefs -af /dev/disk/by-id/"${diskidnum}"* 2>/dev/null || true
+		
+		echo "Disk ${diskidnum} cleared successfully."
 	done < /tmp/diskid_check_"${pool}".txt
 }
 
@@ -1045,8 +1070,11 @@ debootstrap_part1_Func(){
 
 	##Clear partition table
 	clear_partition_table "root"
+	
+	##Force kernel to re-read partition tables
 	partprobe
-	sleep 2
+	udevadm settle
+	sleep 3
 
 	##Partition disk
 	partitionsFunc(){
@@ -1113,8 +1141,11 @@ debootstrap_part1_Func(){
 			sgdisk     -n3:0:0      -t3:"${root_hex_code}" /dev/disk/by-id/"${diskidnum}"
 		
 		done < /tmp/diskid_check_"${pool}".txt
+		
+		##Force kernel to re-read partition tables
 		partprobe
-		sleep 2
+		udevadm settle
+		sleep 3
 	}
 	partitionsFunc
 }
