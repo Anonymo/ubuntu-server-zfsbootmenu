@@ -96,6 +96,20 @@ else
    exit 1
 fi
 
+##Check available memory
+available_memory_kb=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+if [ "$available_memory_kb" -lt 2097152 ]; then
+	echo "Warning: Less than 2GB RAM available. ZFS operations may be slow or fail."
+	echo "Available memory: $(($available_memory_kb / 1024))MB. Recommended: 2GB or more."
+fi
+
+##Check available disk space in /tmp
+available_tmp_space=$(df /tmp | tail -1 | awk '{print $4}')
+if [ "$available_tmp_space" -lt 1048576 ]; then
+	echo "Warning: Less than 1GB available in /tmp. Installation may fail."
+	echo "Available /tmp space: $(($available_tmp_space / 1024))MB. Please ensure adequate space."
+fi
+
 ##Check encryption defined if password defined
 if [ -n "$zfs_root_password" ];
 then	
@@ -751,7 +765,9 @@ create_zpool_Func(){
 
 	esac
 	
-	echo "$zpool_password" | sh "$zpool_create_temp" 
+	echo "Creating ZFS $pool pool. This may take a few minutes..."
+	echo "$zpool_password" | sh "$zpool_create_temp"
+	echo "ZFS $pool pool creation completed." 
 }
 
 update_crypttab_Func(){
@@ -894,7 +910,9 @@ debootstrap_part1_Func(){
 	}
 	#ssh_Func
 	
+	echo "Installing required packages. This may take a few minutes..."
 	apt-get -yq install debootstrap software-properties-common gdisk zfs-initramfs
+	echo "Package installation completed."
 	if service --status-all | grep -Fq 'zfs-zed'; then
 		systemctl stop zfs-zed
 	fi
@@ -1053,7 +1071,9 @@ debootstrap_installminsys_Func(){
 		 exit 1
 	fi
 	
+	echo "Installing base system with debootstrap. This may take several minutes..."
 	debootstrap "$ubuntuver" "$mountpoint"
+	echo "Base system installation completed."
 }
 
 zfsbootmenu_install_config_Func(){
