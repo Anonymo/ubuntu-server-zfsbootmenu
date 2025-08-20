@@ -38,8 +38,9 @@ set -euo pipefail
 ##zfs mount -a #Mount all datasets.
 
 ##Variables:
-ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (24.10). "plucky" (25.04).
-distro_variant="desktop" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant).
+ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (24.10). "plucky" (25.04). "zara" (Linux Mint 22.2).
+distro_base="ubuntu" #Distribution base. "ubuntu" for Ubuntu variants. "mint" for Linux Mint.
+distro_variant="desktop" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant). "mint-cinnamon" (Linux Mint Cinnamon).
 user="testuser" #Username for new install.
 PASSWORD="testuser" #Password for user in new install.
 hostname="ubuntu" #Name to identify the main system on the network. An underscore is DNS non-compliant.
@@ -593,19 +594,41 @@ apt_sources(){
 			apt_data_sources_loc="/etc/apt/sources.list"
 			cp "\${apt_data_sources_loc}" "\${apt_data_sources_loc}".orig
 			
-			cat > "\${apt_data_sources_loc}" <<-EOLIST
-				deb ${ubuntu_original} $ubuntuver main universe restricted multiverse
-				#deb-src ${ubuntu_original} $ubuntuver main universe restricted multiverse
-				
-				deb ${ubuntu_original} $ubuntuver-updates main universe restricted multiverse
-				#deb-src ${ubuntu_original} $ubuntuver-updates main universe restricted multiverse
-				
-				deb ${ubuntu_original} $ubuntuver-backports main universe restricted multiverse
-				#deb-src ${ubuntu_original} $ubuntuver-backports main universe restricted multiverse
-				
-				deb http://security.ubuntu.com/ubuntu $ubuntuver-security main universe restricted multiverse
-				#deb-src http://security.ubuntu.com/ubuntu $ubuntuver-security main universe restricted multiverse
-			EOLIST
+			##Handle Linux Mint repositories separately
+			if [ "$distro_base" = "mint" ] && [ "$ubuntuver" = "zara" ]; then
+				cat > "\${apt_data_sources_loc}" <<-EOLIST
+					##Linux Mint 22.2 Zara repositories
+					deb http://packages.linuxmint.com zara main upstream import backport
+					
+					##Ubuntu 24.04 LTS Noble base repositories  
+					deb ${ubuntu_original} noble main universe restricted multiverse
+					#deb-src ${ubuntu_original} noble main universe restricted multiverse
+					
+					deb ${ubuntu_original} noble-updates main universe restricted multiverse
+					#deb-src ${ubuntu_original} noble-updates main universe restricted multiverse
+					
+					deb ${ubuntu_original} noble-backports main universe restricted multiverse
+					#deb-src ${ubuntu_original} noble-backports main universe restricted multiverse
+					
+					deb http://security.ubuntu.com/ubuntu noble-security main universe restricted multiverse
+					#deb-src http://security.ubuntu.com/ubuntu noble-security main universe restricted multiverse
+				EOLIST
+			else
+				##Standard Ubuntu repositories
+				cat > "\${apt_data_sources_loc}" <<-EOLIST
+					deb ${ubuntu_original} $ubuntuver main universe restricted multiverse
+					#deb-src ${ubuntu_original} $ubuntuver main universe restricted multiverse
+					
+					deb ${ubuntu_original} $ubuntuver-updates main universe restricted multiverse
+					#deb-src ${ubuntu_original} $ubuntuver-updates main universe restricted multiverse
+					
+					deb ${ubuntu_original} $ubuntuver-backports main universe restricted multiverse
+					#deb-src ${ubuntu_original} $ubuntuver-backports main universe restricted multiverse
+					
+					deb http://security.ubuntu.com/ubuntu $ubuntuver-security main universe restricted multiverse
+					#deb-src http://security.ubuntu.com/ubuntu $ubuntuver-security main universe restricted multiverse
+				EOLIST
+			fi
 			
 			if [ "${ubuntu_original}" != "${source_archive}" ];
 			then
@@ -1090,6 +1113,15 @@ debootstrap_part1_Func(){
 	
 	cat "${apt_data_sources_loc}"
 	#sed -i 's,deb http://security,#deb http://security,' "${apt_data_sources_loc}" ##Uncomment to resolve security pocket time out. Security packages are copied to the other pockets frequently, so should still be available for update. See https://wiki.ubuntu.com/SecurityTeam/FAQ
+	
+	##Add Linux Mint GPG key if needed
+	if [ "$distro_base" = "mint" ] && [ "$ubuntuver" = "zara" ]; then
+		echo "Adding Linux Mint repository GPG key..."
+		##Use current linuxmint-keyring package from Zara repository
+		wget -qO /tmp/linuxmint-keyring.deb https://packages.linuxmint.com/pool/main/l/linuxmint-keyring/linuxmint-keyring_2022.06.21_all.deb
+		dpkg -i /tmp/linuxmint-keyring.deb || apt install -f -y
+		rm -f /tmp/linuxmint-keyring.deb
+	fi
 	
 	trap 'printf "%s\n%s" "The script has experienced an error during the first apt update. That may have been caused by a queried server not responding in time. Try running the script again." "If the issue is the security server not responding, then comment out the security server in the "${apt_data_sources_loc}". Alternatively, you can uncomment the command that does this in the install script. This affects the temporary live iso only. Not the permanent installation."' ERR
 	apt update
@@ -2210,6 +2242,31 @@ distroinstall(){
 		#	##Ubuntu cinnamon desktop install has a full GUI environment.
 		#	apt install --yes ubuntucinnamon-desktop
 		#;;
+		mint-cinnamon)
+			##Linux Mint Cinnamon desktop install has a full GUI environment.
+			##Select lightdm as display manager.
+			echo lightdm shared/default-x-display-manager select lightdm | debconf-set-selections
+			
+			##Set APT preferences to prioritize Linux Mint packages over Ubuntu
+			cat > /etc/apt/preferences.d/mint-priority <<-EOF
+				Package: *
+				Pin: release o=linuxmint
+				Pin-Priority: 700
+				
+				Package: *
+				Pin: release o=Ubuntu
+				Pin-Priority: 500
+			EOF
+			
+			##Install core Linux Mint packages first (includes Cinnamon, X-Apps, mint tools)
+			apt install --yes mint-meta-cinnamon linux-mint-adjustment-cinnamon
+			
+			##Install essential Mint-specific tools
+			apt install --yes mintinstall mintupdate mintbackup mintdrivers mintlocale mintreport mintsources mintstick mintwelcome
+			
+			##Install Timeshift (Mint's system snapshot tool)
+			apt install --yes timeshift
+		;;
 		*)
 			echo "Ubuntu variant variable not recognised. Check ubuntu variant variable."
 			exit 1
@@ -2217,7 +2274,8 @@ distroinstall(){
 	esac
 
 	##Replace Firefox and Thunderbird snaps with Mozilla PPA deb packages for desktop variants
-	if [ "$distro_variant" != "server" ]; then
+	##Skip for Mint as it uses its own packaged versions
+	if [ "$distro_variant" != "server" ] && [ "$distro_base" != "mint" ]; then
 		setup_mozilla_deb_packages
 		setup_libreoffice_fresh_ppa
 		
@@ -2236,7 +2294,16 @@ distroinstall(){
 				##GSConnect only works with GNOME Shell, skip for other DEs
 				configure_gnome_defaults
 			;;
+			mint-cinnamon)
+				##Linux Mint Cinnamon desktop - add Flatpak support and configure
+				setup_mint_cinnamon_config
+			;;
 		esac
+	fi
+	
+	##Install LibreOffice Fresh PPA for all desktop variants (including Mint)
+	if [ "$distro_variant" != "server" ]; then
+		setup_libreoffice_fresh_ppa
 	fi
 
 }
@@ -2770,6 +2837,44 @@ install_kde_tiling_extension(){
 	
 	echo "Bismuth tiling extension installed. Tiling features will be enabled on first KDE login."
 	echo "Use Meta+T to toggle tiling, Meta+F to toggle window floating."
+}
+
+setup_mint_cinnamon_config(){
+	##Configure Linux Mint Cinnamon desktop with Mint-specific features
+	
+	echo "Configuring Linux Mint Cinnamon desktop..."
+	
+	##Install and configure Flatpak (Mint's preferred app distribution method)
+	echo "Setting up Flatpak support..."
+	apt install --yes flatpak
+	
+	##Add Flathub repository (already configured in mint-meta-cinnamon but ensure it's available)
+	flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+	
+	##Ensure snap is completely disabled (Mint philosophy)
+	echo "Ensuring snap packages are disabled..."
+	cat > /etc/apt/preferences.d/no-snap <<-EOF
+		Package: snapd
+		Pin: release a=*
+		Pin-Priority: -10
+		
+		Package: gnome-software-plugin-snap
+		Pin: release a=*
+		Pin-Priority: -10
+	EOF
+	
+	##Remove any snap packages that might have been installed
+	if command -v snap >/dev/null 2>&1; then
+		systemctl disable snapd.service snapd.socket snapd.seeded.service || true
+		apt purge -y snapd gnome-software-plugin-snap || true
+		rm -rf /var/cache/snapd/
+	fi
+	
+	##Linux Mint Software Manager defaults to DEB packages with Flatpak as secondary option
+	##No need to change default configuration - Mint handles this correctly
+	
+	echo "Linux Mint Cinnamon configured with DEB packages primary, Flatpak available, snap disabled."
+	echo "Use Software Manager (mintInstall) for DEB packages or Flatpak when needed."
 }
 
 configure_gnome_defaults(){
