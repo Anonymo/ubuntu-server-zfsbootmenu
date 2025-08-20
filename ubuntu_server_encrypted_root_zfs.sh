@@ -2283,12 +2283,23 @@ setup_mozilla_deb_packages(){
 	apt update
 	apt install --yes --allow-downgrades firefox
 	
-	##Install Evolution email client and Exchange Web Services support
-	apt install --yes evolution evolution-ews
+	##Install appropriate email client based on desktop environment
+	case "$distro_variant" in
+		kubuntu)
+			##Install Thunderbird for KDE/Kubuntu
+			apt install --yes --allow-downgrades thunderbird
+			email_client="thunderbird"
+		;;
+		*)
+			##Install Evolution for GNOME-based desktops
+			apt install --yes evolution evolution-ews
+			email_client="evolution"
+		;;
+	esac
 	
 	##Verify successful installation
-	if command -v firefox >/dev/null 2>&1 && command -v evolution >/dev/null 2>&1; then
-		echo "Mozilla Firefox and Evolution email client installed successfully."
+	if command -v firefox >/dev/null 2>&1 && command -v "$email_client" >/dev/null 2>&1; then
+		echo "Mozilla Firefox and $email_client email client installed successfully."
 	else
 		echo "Warning: Package installation may have failed."
 	fi
@@ -2584,7 +2595,7 @@ setup_kubuntu_unity_theme(){
 		[Containments][1][Applets][2][Configuration][General]
 		autoDecreaseIconSize=false
 		iconSize=48
-		launchers59=applications:systemsettings.desktop,applications:org.kde.dolphin.desktop,applications:firefox.desktop,applications:evolution.desktop,applications:org.kde.kate.desktop,applications:org.kde.kcalc.desktop
+		launchers59=applications:systemsettings.desktop,applications:org.kde.dolphin.desktop,applications:firefox.desktop,applications:thunderbird.desktop,applications:org.kde.kate.desktop,applications:org.kde.kcalc.desktop
 		leftClickAction=PresentWindows
 		manualScrollTasksType=Disabled
 		maxLength=100
