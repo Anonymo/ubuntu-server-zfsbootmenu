@@ -28,7 +28,7 @@ First install git (Ubuntu live CD doesn't include it by default):
 
 Then clone the repository:
 
-	git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
+	git clone -b testing https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu
     cd ~/ubuntu-server-zfsbootmenu
     chmod +x ubuntu_server_encrypted_root_zfs.sh
 	
@@ -38,7 +38,7 @@ Edit the variables in the ubuntu_server_encrypted_root_zfs.sh file to your prefe
 
 Or use this one-liner to install git, clone, setup, and open the editor in one command:
 
-	sudo apt install -y git && git clone https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
+	sudo apt install -y git && git clone -b testing https://github.com/Anonymo/ubuntu-server-zfsbootmenu.git ~/ubuntu-server-zfsbootmenu && cd ~/ubuntu-server-zfsbootmenu && chmod +x ubuntu_server_encrypted_root_zfs.sh && gnome-text-editor ubuntu_server_encrypted_root_zfs.sh
 	
 Run the "initial" option of the script.
 
