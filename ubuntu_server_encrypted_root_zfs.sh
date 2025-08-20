@@ -2497,7 +2497,7 @@ extra_programs(){
 		##install openssh-server
 		apt install -y openssh-server
 
-		apt install --yes man-db tldr locate
+		apt install --yes man-db tldr locate unattended-upgrades
 			
 	;;
 	no)
