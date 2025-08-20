@@ -2233,9 +2233,13 @@ distroinstall(){
 			kubuntu)
 				setup_kubuntu_unity_theme
 			;;
-			desktop|xubuntu|budgie|MATE)
+			desktop)
 				install_tiling_extension
 				setup_gsconnect
+				configure_gnome_defaults
+			;;
+			xubuntu|budgie|MATE)
+				##GSConnect only works with GNOME Shell, skip for other DEs
 				configure_gnome_defaults
 			;;
 		esac
