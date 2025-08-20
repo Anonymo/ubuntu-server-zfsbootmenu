@@ -192,6 +192,16 @@ show_installation_status(){
 		last_step=$(cat /tmp/ubuntu_zfs_install_progress.txt)
 		echo "Installation status: Last completed step was '$last_step'"
 		echo "You can resume with: $0 resume"
+		
+		##Check for incomplete installation that booted to desktop
+		if ! grep casper /proc/cmdline >/dev/null 2>&1; then
+			echo "WARNING: You appear to be running from an installed system, not live environment."
+			echo "If you cannot access your ZFS root partition, the installation may be incomplete."
+			echo "You may need to:"
+			echo "  1. Boot from Ubuntu live ISO"
+			echo "  2. Run: $0 resume (to continue installation)"
+			echo "  3. Or run: $0 postreboot (if initial install completed)"
+		fi
 	else
 		echo "No previous installation found."
 	fi

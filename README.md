@@ -38,6 +38,20 @@ Reboot after the initial installation completes and login to the new install. Us
 
 	./ubuntu_server_encrypted_root_zfs.sh postreboot
 
+## Installation Recovery
+
+<details>
+<summary><strong>Resume interrupted installations</strong></summary>
+
+If your installation is interrupted (network disconnection, system crash, etc.), you can resume where you left off:
+
+	./ubuntu_server_encrypted_root_zfs.sh status    # Check installation progress
+	./ubuntu_server_encrypted_root_zfs.sh resume    # Resume from last checkpoint
+
+The script automatically detects previous installations and offers to resume when you run the `initial` command.
+
+</details>
+
 <details>
 <summary><strong>Optional: Remote access during boot</strong></summary>
 
