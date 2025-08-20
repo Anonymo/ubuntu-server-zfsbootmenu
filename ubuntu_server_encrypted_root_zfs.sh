@@ -38,7 +38,7 @@ set -euo pipefail
 ##zfs mount -a #Mount all datasets.
 
 ##Variables:
-ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04). "noble" (24.04). "oracular" (25.04).
+ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (25.04). "plucky" (25.10).
 distro_variant="server" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant).
 user="testuser" #Username for new install.
 PASSWORD="testuser" #Password for user in new install.
@@ -158,6 +158,45 @@ else true
 fi
 
 ##Functions
+save_progress(){
+	progress_step="$1"
+	echo "$progress_step" > /tmp/ubuntu_zfs_install_progress.txt
+	echo "Installation progress: $progress_step"
+}
+
+check_resume(){
+	if [ -f /tmp/ubuntu_zfs_install_progress.txt ]; then
+		last_step=$(cat /tmp/ubuntu_zfs_install_progress.txt)
+		echo "Previous installation detected. Last completed step: $last_step"
+		echo "Would you like to resume from where you left off? (y/N)"
+		read -r resume_choice
+		case "$resume_choice" in
+			y|Y)
+				echo "Resuming installation from step: $last_step"
+				return 0
+			;;
+			*)
+				echo "Starting fresh installation. Removing previous progress..."
+				rm -f /tmp/ubuntu_zfs_install_progress.txt
+				return 1
+			;;
+		esac
+	else
+		echo "Starting new installation..."
+		return 1
+	fi
+}
+
+show_installation_status(){
+	if [ -f /tmp/ubuntu_zfs_install_progress.txt ]; then
+		last_step=$(cat /tmp/ubuntu_zfs_install_progress.txt)
+		echo "Installation status: Last completed step was '$last_step'"
+		echo "You can resume with: $0 resume"
+	else
+		echo "No previous installation found."
+	fi
+}
+
 live_desktop_check(){
 	##Check for live desktop environment
 	if [ "$(dpkg -l ubuntu-desktop)" ];
@@ -2423,26 +2462,46 @@ initialinstall(){
 	disclaimer
 	live_desktop_check
 	connectivity_check #Check for internet connectivity.
+	save_progress "connectivity_checked"
+	
 	getdiskID_pool "root"
+	save_progress "disk_selection_completed"
+	
 	ipv6_apt_live_iso_fix #Only active if ipv6_apt_fix_live_iso variable is set to "yes".
 
 	debootstrap_part1_Func
+	save_progress "packages_installed"
+	
 	debootstrap_createzfspools_Func
+	save_progress "zfs_pools_created"
+	
 	debootstrap_installminsys_Func
+	save_progress "base_system_installed"
 	systemsetupFunc_part1 #Basic system configuration.
+	save_progress "basic_system_config"
+	
 	systemsetupFunc_part2 #Install zfs.
+	save_progress "zfs_installed"
+	
 	systemsetupFunc_part3 #Format EFI partition.
+	save_progress "efi_partition_formatted"
 	
 	keyboard_console_setup #Configure keyboard and console.
 	systemsetupFunc_part4 #Install zfsbootmenu.
+	save_progress "zfsbootmenu_installed"
+	
 	systemsetupFunc_part5 #Config swap, tmpfs, rootpass.
+	save_progress "swap_tmpfs_configured"
 	
 	usersetup #Create user account and setup groups.
+	save_progress "user_account_created"
+	
 	logcompress #Disable log compression.
 	reinstate_apt "chroot" #Reinstate non-mirror package sources in new install.
 	script_copy #Copy script to new installation.
 	fixfsmountorder #ZFS file system mount ordering.
 	logcopy #Copy install log to new installation.
+	save_progress "initial_install_completed"
 	
 	#unmount_datasets #Unmount datasets.
 	
@@ -2469,6 +2528,20 @@ postreboot(){
 
 case "${1-default}" in
 	initial)
+		##Check for previous installation
+		if [ -f /tmp/ubuntu_zfs_install_progress.txt ]; then
+			echo "Previous installation detected!"
+			show_installation_status
+			echo "Would you like to resume the previous installation instead? (y/N)"
+			read -r resume_choice
+			case "$resume_choice" in
+				y|Y)
+					$0 resume
+					exit $?
+				;;
+			esac
+		fi
+		
 		echo "Running initial system installation. Press Enter to Continue or CTRL+C to abort."
 		read -r _
 		initialinstall
@@ -2498,8 +2571,33 @@ case "${1-default}" in
 		read -r
 		reinstall-pyznap
 	;;
+	status)
+		show_installation_status
+	;;
+	resume)
+		if check_resume; then
+			last_step=$(cat /tmp/ubuntu_zfs_install_progress.txt)
+			case "$last_step" in
+				"connectivity_checked"|"disk_selection_completed")
+					echo "Resuming from early installation stage..."
+					initialinstall
+				;;
+				"packages_installed"|"zfs_pools_created"|"base_system_installed"|"basic_system_config"|"zfs_installed"|"efi_partition_formatted"|"zfsbootmenu_installed"|"swap_tmpfs_configured"|"user_account_created")
+					echo "Cannot resume from middle of initial installation. Please restart with 'initial' or check if reboot is needed."
+				;;
+				"initial_install_completed")
+					echo "Initial installation was completed. Run with 'postreboot' option."
+				;;
+				*)
+					echo "Unknown installation step: $last_step. Please restart with 'initial'."
+				;;
+			esac
+		else
+			echo "No previous installation to resume."
+		fi
+	;;
 	*)
-		printf "%s\n%s\n%s\n" "-----" "Usage: $0 initial | postreboot | remoteaccess | datapool | reinstall-zbm | reinstall-pyznap" "-----"
+		printf "%s\n%s\n%s\n" "-----" "Usage: $0 initial | postreboot | remoteaccess | datapool | reinstall-zbm | reinstall-pyznap | status | resume" "-----"
 	;;
 esac
 
