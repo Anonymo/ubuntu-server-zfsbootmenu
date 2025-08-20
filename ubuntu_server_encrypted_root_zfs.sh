@@ -39,14 +39,14 @@ set -euo pipefail
 
 ##Variables:
 ubuntuver="noble" #Ubuntu release to install. "jammy" (22.04 LTS). "noble" (24.04 LTS). "oracular" (24.10).
-distro_variant="server" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant).
+distro_variant="desktop" #Ubuntu variant to install. "server" (Ubuntu server; cli only.) "desktop" (Default Ubuntu desktop install). "kubuntu" (KDE plasma desktop variant). "xubuntu" (Xfce desktop variant). "budgie" (Budgie desktop variant). "MATE" (MATE desktop variant).
 user="testuser" #Username for new install.
 PASSWORD="testuser" #Password for user in new install.
 hostname="ubuntu" #Name to identify the main system on the network. An underscore is DNS non-compliant.
 zfs_root_password="testtest" #Password for encrypted root pool. Minimum 8 characters. "" for no password encrypted protection. Unlocking root pool also unlocks data pool, unless the root pool has no password protection, then a separate data pool password can be set below.
 zfs_root_encrypt="native" #Encryption type. "native" for native zfs encryption. "luks" for luks. Required if there is a root pool password, otherwise ignored.
-locale="en_GB.UTF-8" #New install language setting.
-timezone="Europe/London" #New install timezone setting.
+locale="en_US.UTF-8" #New install language setting.
+timezone="America/Chicago" #New install timezone setting.
 zfs_rpool_ashift="12" #Drive setting for zfs pool. ashift=9 means 512B sectors (used by all ancient drives), ashift=12 means 4KiB sectors (used by most modern hard drives), and ashift=13 means 8KiB sectors (used by some modern SSDs).
 mirror_archive="" #"" to use the default ubuntu repository. Set to an ISO 3166-1 alpha-2 country code to use a country mirror archive, e.g. "GB". A speed test is run and the fastest archive is selected. Country codes: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
 
@@ -54,7 +54,7 @@ RPOOL="rpool" #Root pool name.
 topology_root="single" #"single", "mirror", "raid0", "raidz1", "raidz2", or "raidz3" topology on root pool.
 disks_root="1" #Number of disks in array for root pool. Not used with single topology.
 EFI_boot_size="512" #EFI boot loader partition size in mebibytes (MiB).
-swap_size="500" #Swap partition size in mebibytes (MiB). Size of swap will be larger than defined here with Raidz topologies.
+swap_size="16" #Swap partition size in gigabytes (GB). Size of swap will be larger than defined here with Raidz topologies.
 datapool="datapool" #Non-root drive data pool name.
 topology_data="single" #"single", "mirror", "raid0", "raidz1", "raidz2", or "raidz3" topology on data pool.
 disks_data="1" #Number of disks in array for data pool. Not used with single topology.
@@ -1107,7 +1107,7 @@ debootstrap_part1_Func(){
 			##https://github.com/zfsonlinux/zfs/issues/7734
 			##hibernate needs swap at least same size as RAM
 			##hibernate only works with unencrypted installs
-			sgdisk -n2:0:+"${swap_size}"M -t2:"${swap_hex_code}" /dev/disk/by-id/"${diskidnum}"
+			sgdisk -n2:0:+"$((swap_size * 1024))"M -t2:"${swap_hex_code}" /dev/disk/by-id/"${diskidnum}"
 		
 			##2.6 Create root pool partition
 			sgdisk     -n3:0:0      -t3:"${root_hex_code}" /dev/disk/by-id/"${diskidnum}"
@@ -2119,6 +2119,7 @@ distroinstall(){
 	##Replace Firefox and Thunderbird snaps with Mozilla PPA deb packages for desktop variants
 	if [ "$distro_variant" != "server" ]; then
 		setup_mozilla_deb_packages
+		install_tiling_extension
 	fi
 
 }
@@ -2171,6 +2172,69 @@ setup_mozilla_deb_packages(){
 	else
 		echo "Warning: Mozilla package installation may have failed."
 	fi
+}
+
+install_tiling_extension(){
+	##Install advanced window tiling extension for better desktop productivity
+	##Ubuntu 24.04+ has built-in tiling, but Tiling Shell provides more advanced features
+	
+	echo "Installing advanced window tiling capabilities..."
+	
+	##Install required packages for GNOME extensions
+	apt install --yes chrome-gnome-shell gnome-shell-extension-prefs
+	
+	##Download and install Tiling Shell extension manually
+	##Extension ID: 7065 (Tiling Shell)
+	tiling_shell_url="https://extensions.gnome.org/extension-data/tilingshelldomferr.gmail.com.v12.shell-extension.zip"
+	extension_dir="/usr/share/gnome-shell/extensions/tilingshell@domferr.gmail.com"
+	
+	##Create extension directory
+	mkdir -p "$extension_dir"
+	
+	##Download and extract extension
+	wget -q "$tiling_shell_url" -O /tmp/tiling-shell.zip 2>/dev/null || {
+		echo "Warning: Could not download Tiling Shell extension. Using built-in Ubuntu tiling."
+		return 0
+	}
+	
+	unzip -q /tmp/tiling-shell.zip -d "$extension_dir" 2>/dev/null || {
+		echo "Warning: Could not extract Tiling Shell extension. Using built-in Ubuntu tiling."
+		return 0
+	}
+	
+	##Set proper permissions
+	chmod -R 755 "$extension_dir"
+	
+	##Create configuration script for first boot
+	cat > /etc/profile.d/enable-tiling.sh <<-'EOF'
+		##Enable tiling extensions on first login
+		if [ "$XDG_SESSION_TYPE" = "wayland" ] || [ "$XDG_SESSION_TYPE" = "x11" ]; then
+			if [ -n "$GNOME_SHELL_SESSION_MODE" ] && ! [ -f "$HOME/.tiling-extensions-enabled" ]; then
+				##Enable built-in Ubuntu Tiling Assistant
+				gsettings set org.gnome.shell enabled-extensions "['ubuntu-appindicators@ubuntu.com', 'ubuntu-dock@ubuntu.com', 'tiling-assistant@ubuntu.com']"
+				
+				##Enable Tiling Shell if available
+				if [ -d "/usr/share/gnome-shell/extensions/tilingshell@domferr.gmail.com" ]; then
+					gsettings set org.gnome.shell enabled-extensions "['ubuntu-appindicators@ubuntu.com', 'ubuntu-dock@ubuntu.com', 'tiling-assistant@ubuntu.com', 'tilingshell@domferr.gmail.com']"
+				fi
+				
+				##Mark as configured
+				touch "$HOME/.tiling-extensions-enabled"
+				
+				##Restart GNOME Shell if in X11 session
+				if [ "$XDG_SESSION_TYPE" = "x11" ]; then
+					nohup bash -c 'sleep 3; killall -SIGUSR1 gnome-shell' >/dev/null 2>&1 &
+				fi
+			fi
+		fi
+	EOF
+	
+	chmod 644 /etc/profile.d/enable-tiling.sh
+	
+	##Clean up
+	rm -f /tmp/tiling-shell.zip
+	
+	echo "Advanced window tiling configured. Extensions will be enabled on first user login."
 }
 
 NetworkManager_config(){
