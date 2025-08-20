@@ -740,7 +740,7 @@ update_crypttab_Func(){
 		root)
 			zpool_password="$zfs_root_password"
 			zpool_partition="-part3"
-			crypttab_parameters="luks,discard,initramfs"
+			crypttab_parameters="luks,discard,initramfs,noauto"
 		;;
 		
 		data)
