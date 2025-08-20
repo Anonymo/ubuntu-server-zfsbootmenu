@@ -1062,7 +1062,18 @@ debootstrap_part1_Func(){
 	#ssh_Func
 	
 	echo "Installing required packages. This may take a few minutes..."
-	apt-get -yq install debootstrap software-properties-common gdisk zfs-initramfs
+	
+	##Ensure package cache is updated before installation
+	apt-get update
+	
+	if ! apt-get -yq install debootstrap software-properties-common gdisk zfs-initramfs; then
+		echo "Package installation failed. Retrying with individual packages..."
+		apt-get -yq install debootstrap || echo "Warning: debootstrap installation failed"
+		apt-get -yq install software-properties-common || echo "Warning: software-properties-common installation failed"
+		apt-get -yq install gdisk || echo "Warning: gdisk installation failed"
+		apt-get -yq install zfs-initramfs || echo "Warning: zfs-initramfs installation failed"
+	fi
+	
 	echo "Package installation completed."
 	if service --status-all | grep -Fq 'zfs-zed'; then
 		systemctl stop zfs-zed
@@ -1372,8 +1383,19 @@ zfsbootmenu_install_config_Func(){
 		}
 		config_zbm
 
-		update-initramfs -c -k all
-		generate-zbm --debug
+		echo "Updating initramfs with ZFS support..."
+		if ! update-initramfs -c -k all; then
+			echo "Warning: initramfs update failed. Attempting recovery..."
+			##Clear any corrupted initramfs cache
+			rm -rf /var/lib/initramfs-tools/*
+			##Regenerate with verbose output to see errors
+			update-initramfs -c -k all -v || echo "Error: initramfs creation failed"
+		fi
+		
+		echo "Generating ZFS Boot Menu..."
+		if ! generate-zbm --debug; then
+			echo "Warning: ZFS Boot Menu generation failed. This may cause boot issues."
+		fi
 
 	EOH
 
@@ -2047,9 +2069,19 @@ systemsetupFunc_part5(){
 
 		##Refresh initrd files
 		
+		echo "Available kernel modules:"
 		ls /usr/lib/modules
 		
-		update-initramfs -c -k all
+		echo "Final initramfs update with complete system configuration..."
+		if ! update-initramfs -c -k all; then
+			echo "Warning: Final initramfs update failed. Attempting recovery..."
+			##Remove any partial initramfs files
+			rm -f /boot/initrd.img-*
+			##Try again with verbose output
+			update-initramfs -c -k all -v || echo "Error: Final initramfs creation failed"
+		else
+			echo "Initramfs updated successfully."
+		fi
 		
 	EOCHROOT
 	
@@ -2469,23 +2501,46 @@ fixfsmountorder(){
 	chroot "$mountpoint" /bin/bash -x <<-EOCHROOT
 		##Fix filesystem mount ordering
 
+		echo "Setting up ZFS cache directory..."
 		mkdir -p /etc/zfs/zfs-list.cache
 
+		echo "Creating ZFS cache file for $RPOOL..."
 		touch /etc/zfs/zfs-list.cache/$RPOOL
-		#ln -s /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d
+		
+		##Ensure zed cache script is properly linked
+		if [ ! -f /etc/zfs/zed.d/history_event-zfs-list-cacher.sh ]; then
+			if [ -f /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh ]; then
+				ln -sf /usr/lib/zfs-linux/zed.d/history_event-zfs-list-cacher.sh /etc/zfs/zed.d/
+				echo "Linked ZFS cache script."
+			else
+				echo "Warning: ZFS cache script not found. Cache may not update properly."
+			fi
+		fi
+		
+		echo "Starting ZFS Event Daemon for cache population..."
 		zed -F &
-		sleep 2
+		zed_pid=$!
+		sleep 3
 
 		##Verify that zed updated the cache by making sure this is not empty:
-		##If it is empty, force a cache update and check again:
-		##Note can take a while. c.30 seconds for loop to succeed.
-		cat /etc/zfs/zfs-list.cache/$RPOOL
-		while [ ! -s /etc/zfs/zfs-list.cache/$RPOOL ]
+		echo "Checking ZFS cache population (this may take up to 30 seconds)..."
+		cache_attempts=0
+		while [ ! -s /etc/zfs/zfs-list.cache/$RPOOL ] && [ $cache_attempts -lt 30 ]
 		do
+			echo "Attempt $((cache_attempts + 1)): Updating ZFS cache..."
 			zfs set canmount=noauto $RPOOL/ROOT/${rootzfs_full_name}
 			sleep 1
+			cache_attempts=$((cache_attempts + 1))
 		done
-		cat /etc/zfs/zfs-list.cache/$RPOOL
+		
+		if [ -s /etc/zfs/zfs-list.cache/$RPOOL ]; then
+			echo "ZFS cache populated successfully:"
+			cat /etc/zfs/zfs-list.cache/$RPOOL
+		else
+			echo "Warning: ZFS cache failed to populate after 30 attempts. This may cause boot issues."
+			##Create minimal cache manually as fallback
+			zfs list -H -o name,canmount,mountpoint -t filesystem -r $RPOOL > /etc/zfs/zfs-list.cache/$RPOOL
+		fi
 
 		##Stop zed:
 		pkill -9 "zed*"
