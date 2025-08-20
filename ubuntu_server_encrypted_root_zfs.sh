@@ -2273,7 +2273,7 @@ setup_mozilla_deb_packages(){
 	
 	##Update package lists and install Mozilla deb packages
 	apt update
-	apt install --yes firefox thunderbird
+	apt install --yes --allow-downgrades firefox thunderbird
 	
 	##Verify successful installation
 	if command -v firefox >/dev/null 2>&1 && command -v thunderbird >/dev/null 2>&1; then
@@ -2296,7 +2296,7 @@ setup_libreoffice_fresh_ppa(){
 	apt update
 	
 	##Upgrade existing LibreOffice installation to PPA version
-	apt upgrade --yes libreoffice*
+	apt upgrade --yes --allow-downgrades libreoffice*
 	
 	echo "LibreOffice Fresh PPA configured. System will receive latest LibreOffice updates."
 }
