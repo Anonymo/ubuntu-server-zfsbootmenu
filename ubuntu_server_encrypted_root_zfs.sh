@@ -781,6 +781,25 @@ update_crypttab_Func(){
 		##Configure cryptsetup to skip asking for passphrase if keyfile exists
 		##This prevents double-prompting when zbm-luks-unlock has already unlocked devices
 		echo 'CRYPTSETUP="cryptsetup --key-file=/etc/cryptsetup-keys.d/$RPOOL.key"' >> /etc/cryptsetup-initramfs/conf-hook
+		
+		##Create systemd service to handle LUKS devices that are already unlocked by ZBM
+		##This prevents systemd from trying to unlock them again during boot
+		cat > /etc/systemd/system/luks-zbm-check.service <<-'SYSTEMD_SERVICE'
+		[Unit]
+		Description=Check for ZBM-unlocked LUKS devices
+		DefaultDependencies=false
+		Before=cryptsetup.target
+		
+		[Service]
+		Type=oneshot
+		RemainAfterExit=yes
+		ExecStart=/bin/bash -c 'for dev in /dev/mapper/luks*; do [ -e "\$dev" ] && systemctl --no-block start "systemd-cryptsetup@\$(basename \$dev).service" || true; done'
+		
+		[Install]
+		WantedBy=sysinit.target
+		SYSTEMD_SERVICE
+		
+		systemctl enable luks-zbm-check.service
 
 	EOH
 
