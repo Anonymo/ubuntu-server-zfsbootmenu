@@ -7,9 +7,9 @@ Snapshots allow you to rollback your system to a previous state if there is a pr
 <details>
 <summary><strong>Supported Features</strong></summary>
 
-- Ubuntu 22.04 LTS, 24.04 LTS, 24.10, 25.04.
+- Ubuntu 22.04 LTS, 24.04 LTS, 24.10, 25.04, and Linux Mint 22.2 (Zara).
 - Root filesystem on ZFS.
-- Choose from: Ubuntu Server, Ubuntu Desktop, Kubuntu, Xubuntu, Budgie, and Ubuntu MATE.
+- Choose from: Ubuntu Server, Ubuntu Desktop, Kubuntu, Xubuntu, Budgie, Ubuntu MATE, and Linux Mint Cinnamon.
 - Single, mirror, raid0, raidz1, raidz2, and raidz3 topologies.
 - LUKS and native ZFS encryption.
 - Remote unlocking of encrypted pools at boot over SSH.
@@ -20,7 +20,7 @@ Snapshots allow you to rollback your system to a previous state if there is a pr
 </details>
 
 ## Usage
-Boot the system with an Ubuntu live desktop iso. Use an Ubuntu iso to boot from even if installing a different Ubuntu flavour such as Kubuntu. Start the terminal (Ctrl+Alt+T) and enter the following.
+Boot the system with an Ubuntu live desktop iso. Use an Ubuntu iso to boot from even if installing a different Ubuntu flavour such as Kubuntu or Linux Mint. **For Linux Mint installations, use Ubuntu 24.04 LTS media** - the script will install the Ubuntu base system and then add Linux Mint repositories and packages. Start the terminal (Ctrl+Alt+T) and enter the following.
 
 First install git (Ubuntu live CD doesn't include it by default):
 
