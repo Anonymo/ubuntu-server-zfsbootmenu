@@ -2119,6 +2119,7 @@ distroinstall(){
 	##Replace Firefox and Thunderbird snaps with Mozilla PPA deb packages for desktop variants
 	if [ "$distro_variant" != "server" ]; then
 		setup_mozilla_deb_packages
+		setup_libreoffice_fresh_ppa
 		install_tiling_extension
 	fi
 
@@ -2172,6 +2173,24 @@ setup_mozilla_deb_packages(){
 	else
 		echo "Warning: Mozilla package installation may have failed."
 	fi
+}
+
+setup_libreoffice_fresh_ppa(){
+	##Add LibreOffice Fresh PPA for more recent versions
+	##LibreOffice is already deb-based in Ubuntu (not snap), but PPA provides fresher versions
+	
+	echo "Configuring LibreOffice Fresh PPA for latest versions..."
+	
+	##Add LibreOffice Fresh PPA
+	add-apt-repository -y ppa:libreoffice/ppa
+	
+	##Update package lists to get PPA packages
+	apt update
+	
+	##Upgrade existing LibreOffice installation to PPA version
+	apt upgrade --yes libreoffice*
+	
+	echo "LibreOffice Fresh PPA configured. System will receive latest LibreOffice updates."
 }
 
 install_tiling_extension(){
