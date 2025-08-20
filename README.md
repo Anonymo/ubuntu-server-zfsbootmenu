@@ -24,7 +24,7 @@ Boot the system with an Ubuntu live desktop iso. Use an Ubuntu iso to boot from 
 
 First install git (Ubuntu live CD doesn't include it by default):
 
-	sudo apt update && sudo apt install -y git
+	sudo apt install -y git
 
 Then clone the repository:
 
