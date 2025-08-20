@@ -2116,6 +2116,61 @@ distroinstall(){
 		;;
 	esac
 
+	##Replace Firefox and Thunderbird snaps with Mozilla PPA deb packages for desktop variants
+	if [ "$distro_variant" != "server" ]; then
+		setup_mozilla_deb_packages
+	fi
+
+}
+
+setup_mozilla_deb_packages(){
+	##Replace Firefox and Thunderbird snap packages with Mozilla PPA deb versions
+	##This prevents the problematic snap versions and provides better desktop integration
+	
+	echo "Configuring Mozilla Firefox and Thunderbird deb packages instead of snaps..."
+	
+	##Remove only Firefox and Thunderbird snap packages if they exist
+	if snap list 2>/dev/null | grep -q "^firefox "; then
+		snap remove --purge firefox 2>/dev/null || true
+	fi
+	if snap list 2>/dev/null | grep -q "^thunderbird "; then
+		snap remove --purge thunderbird 2>/dev/null || true
+	fi
+	
+	##Add Mozilla Team PPA for both Firefox and Thunderbird
+	add-apt-repository -y ppa:mozillateam/ppa
+	
+	##Configure APT preferences to prioritize Mozilla PPA and prevent Ubuntu snap reinstallation
+	cat > /etc/apt/preferences.d/mozilla-firefox <<-EOF
+		Package: firefox*
+		Pin: release o=LP-PPA-mozillateam
+		Pin-Priority: 1001
+
+		Package: firefox*
+		Pin: release o=Ubuntu
+		Pin-Priority: -1
+	EOF
+	
+	cat > /etc/apt/preferences.d/mozilla-thunderbird <<-EOF
+		Package: thunderbird*
+		Pin: release o=LP-PPA-mozillateam
+		Pin-Priority: 1001
+
+		Package: thunderbird*
+		Pin: release o=Ubuntu
+		Pin-Priority: -1
+	EOF
+	
+	##Update package lists and install Mozilla deb packages
+	apt update
+	apt install --yes firefox thunderbird
+	
+	##Verify successful installation
+	if command -v firefox >/dev/null 2>&1 && command -v thunderbird >/dev/null 2>&1; then
+		echo "Mozilla Firefox and Thunderbird deb packages installed successfully."
+	else
+		echo "Warning: Mozilla package installation may have failed."
+	fi
 }
 
 NetworkManager_config(){
