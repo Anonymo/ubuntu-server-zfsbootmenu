@@ -2227,9 +2227,18 @@ distroinstall(){
 	if [ "$distro_variant" != "server" ]; then
 		setup_mozilla_deb_packages
 		setup_libreoffice_fresh_ppa
-		install_tiling_extension
-		setup_gsconnect
-		configure_gnome_defaults
+		
+		##Configure desktop-specific features
+		case "$distro_variant" in
+			kubuntu)
+				setup_kubuntu_unity_theme
+			;;
+			desktop|xubuntu|budgie|MATE)
+				install_tiling_extension
+				setup_gsconnect
+				configure_gnome_defaults
+			;;
+		esac
 	fi
 
 }
@@ -2456,6 +2465,276 @@ configure_gnome_defaults(){
 	chmod 644 /etc/profile.d/configure-gnome.sh
 	
 	echo "GNOME configuration script installed. Settings will apply on first user login."
+}
+
+setup_kubuntu_unity_theme(){
+	##Create Ubuntu Unity global theme for Kubuntu
+	##Based on make-cachyOS-look-like-ubuntu KDE branch
+	
+	echo "Installing Ubuntu Unity theme for Kubuntu..."
+	
+	##Install required packages for Ubuntu Unity look
+	apt install --yes \
+		yaru-theme-gtk \
+		yaru-theme-icon \
+		yaru-theme-sound \
+		fonts-ubuntu \
+		fonts-liberation2 \
+		latte-dock \
+		plasma-widgets-addons \
+		kdeplasma-addons \
+		plasma-browser-integration
+	
+	##Create global theme directory structure
+	theme_dir="/usr/share/plasma/look-and-feel/org.ubuntu.unity"
+	mkdir -p "$theme_dir"/{contents/{defaults,layouts,previews,splash,lockscreen,logout},metadata}
+	
+	##Create theme metadata
+	cat > "$theme_dir/metadata/metadata.desktop" <<-'EOF'
+		[Desktop Entry]
+		Comment=Ubuntu Unity look for Kubuntu
+		Name=Ubuntu Unity
+		X-KDE-PluginInfo-Author=Ubuntu ZFS Installer
+		X-KDE-PluginInfo-Category=Plasma Look And Feel
+		X-KDE-PluginInfo-Depends=
+		X-KDE-PluginInfo-Email=
+		X-KDE-PluginInfo-EnabledByDefault=true
+		X-KDE-PluginInfo-License=GPL
+		X-KDE-PluginInfo-Name=org.ubuntu.unity
+		X-KDE-PluginInfo-ServiceTypes=Plasma/LookAndFeel
+		X-KDE-PluginInfo-Version=1.0
+		X-KDE-PluginInfo-Website=
+		X-Plasma-MainScript=defaults
+	EOF
+	
+	##Create theme defaults configuration
+	cat > "$theme_dir/contents/defaults" <<-'EOF'
+		[kdeglobals][KDE]
+		widgetStyle=breeze
+		
+		[kdeglobals][General]
+		ColorScheme=YaruOrange
+		Name=Yaru-Orange
+		shadeSortColumn=true
+		
+		[kdeglobals][Icons]
+		Theme=Yaru
+		
+		[kdeglobals][WM]
+		activeBackground=233,130,35
+		activeBlend=255,255,255
+		activeForeground=255,255,255
+		inactiveBackground=118,118,118
+		inactiveBlend=75,71,67
+		inactiveForeground=189,195,199
+		
+		[plasmarc][Theme]
+		name=default
+		
+		[Desktoptheme]
+		name=default
+		
+		[kcminputrc][Mouse]
+		cursorTheme=Yaru
+		
+		[kwinrc][org.kde.kdecoration2]
+		library=org.kde.kwin.aurorae
+		theme=__aurorae__svg__Yaru
+		ButtonsOnLeft=XIA
+		ButtonsOnRight=
+		
+		[kwinrc][Windows]
+		BorderlessMaximizedWindows=true
+		
+		[kwinrc][Plugins]
+		kwin4_effect_maximizeEnabled=true
+		
+		[lattedockrc][UniversalSettings]
+		currentLayout=Unity
+		launchers=applications:systemsettings.desktop,applications:org.kde.dolphin.desktop,applications:firefox.desktop,applications:org.kde.kate.desktop
+		
+		[krunnerrc][General]
+		FreeFloating=true
+	EOF
+	
+	##Create Latte Dock Unity layout
+	latte_config_dir="/usr/share/latte-dock/layouts/Unity"
+	mkdir -p "$latte_config_dir"
+	
+	cat > "$latte_config_dir/Unity.layout.latte" <<-'EOF'
+		[ActionPlugins][1]
+		RightButton;NoModifier=org.kde.contextmenu
+		
+		[Containments][1]
+		activityId=
+		formFactor=2
+		immutability=1
+		lastScreen=0
+		location=3
+		plugin=org.kde.latte.containment
+		wallpaperplugin=org.kde.image
+		
+		[Containments][1][Applets][2]
+		immutability=1
+		plugin=org.kde.latte.plasmoid
+		
+		[Containments][1][Applets][2][Configuration]
+		PreloadWeight=0
+		
+		[Containments][1][Applets][2][Configuration][General]
+		autoDecreaseIconSize=false
+		iconSize=48
+		launchers59=applications:systemsettings.desktop,applications:org.kde.dolphin.desktop,applications:firefox.desktop,applications:evolution.desktop,applications:org.kde.kate.desktop,applications:org.kde.kcalc.desktop
+		leftClickAction=PresentWindows
+		manualScrollTasksType=Disabled
+		maxLength=100
+		middleClickAction=NewInstance
+		minimumMumbleOpacity=25
+		plasmoidLocation=FullScreen
+		showInfoBadge=true
+		showProgressBadge=true
+		tasksUpgradeVersion=211
+		titleTooltips=false
+		zoomLevel=0
+		
+		[Containments][1][General]
+		advanced=false
+		alignment=10
+		appletOrder=2
+		backgroundRadius=0
+		backgroundShadowSize=25
+		behaveAsPlasmaPanel=false
+		blurEnabled=false
+		byPassWM=false
+		canSetStrut=true
+		configurationSticker=true
+		disablePanelShadowMaximized=false
+		dragActiveWindowEnabled=true
+		editBackgroundBorderWidth=2
+		enableAutoHide=true
+		enableKWinEdges=true
+		fontPixelSize=-1
+		hideThickScreenGap=true
+		iconSize=48
+		inConfigureAppletsMode=true
+		isPreferredForShortcuts=false
+		kwinEdgeEnabled=true
+		leftClickAction=PresentWindows
+		lengthExtMargin=0
+		location=5
+		mouseSensitivity=Medium
+		onPrimary=true
+		panelSize=100
+		panelTransparency=60
+		plasmaBackgroundForPopups=true
+		screenEdgeMargin=0
+		settingsComplexity=Basic
+		shadowOpacity=25
+		shadowSize=45
+		showGlow=false
+		showToolTips=true
+		solidBackgroundForMaximized=false
+		splitterPosition=153
+		splitterPosition2=204
+		timerHide=700
+		timerShow=0
+		titleTooltips=false
+		useThemePanel=true
+		visibility=1
+		zoomLevel=0
+		
+		[Containments][2]
+		activityId=
+		formFactor=2
+		immutability=1
+		lastScreen=0
+		location=4
+		plugin=org.kde.panel
+		wallpaperplugin=org.kde.image
+		
+		[Containments][2][Applets][3]
+		immutability=1
+		plugin=org.kde.plasma.appmenu
+		
+		[Containments][2][Applets][4]
+		immutability=1
+		plugin=org.kde.plasma.panelspacer
+		
+		[Containments][2][Applets][5]
+		immutability=1
+		plugin=org.kde.plasma.digitalclock
+		
+		[Containments][2][Applets][6]
+		immutability=1
+		plugin=org.kde.plasma.systemtray
+		
+		[Containments][2][General]
+		AppletOrder=3;4;5;6
+		
+		[ScreenMapping]
+		screenMapping=
+	EOF
+	
+	##Create autostart script for first KDE login
+	cat > /etc/xdg/autostart/ubuntu-unity-theme.desktop <<-'EOF'
+		[Desktop Entry]
+		Type=Application
+		Name=Ubuntu Unity Theme Setup
+		Exec=/usr/local/bin/setup-ubuntu-unity-theme.sh
+		Hidden=false
+		NoDisplay=true
+		X-GNOME-Autostart-enabled=true
+		X-KDE-autostart-after=panel
+		X-KDE-StartupNotify=false
+		OnlyShowIn=KDE;
+	EOF
+	
+	##Create theme setup script
+	cat > /usr/local/bin/setup-ubuntu-unity-theme.sh <<-'EOF'
+		#!/bin/bash
+		##Apply Ubuntu Unity theme on first KDE login
+		
+		if [ ! -f "$HOME/.ubuntu-unity-applied" ]; then
+			##Apply global theme
+			lookandfeeltool -a org.ubuntu.unity 2>/dev/null || true
+			
+			##Configure window decorations
+			kwriteconfig5 --file kwinrc --group "org.kde.kdecoration2" --key "library" "org.kde.kwin.aurorae"
+			kwriteconfig5 --file kwinrc --group "org.kde.kdecoration2" --key "theme" "__aurorae__svg__Yaru"
+			kwriteconfig5 --file kwinrc --group "org.kde.kdecoration2" --key "ButtonsOnLeft" "XIA"
+			kwriteconfig5 --file kwinrc --group "org.kde.kdecoration2" --key "ButtonsOnRight" ""
+			
+			##Configure borderless maximized windows
+			kwriteconfig5 --file kwinrc --group "Windows" --key "BorderlessMaximizedWindows" "true"
+			
+			##Start Latte Dock with Unity layout
+			if command -v latte-dock >/dev/null 2>&1; then
+				kwriteconfig5 --file lattedockrc --group "UniversalSettings" --key "currentLayout" "Unity"
+				latte-dock --replace >/dev/null 2>&1 &
+			fi
+			
+			##Set KRunner shortcut to Alt+Space (Unity HUD style)
+			kwriteconfig5 --file kglobalshortcutsrc --group "org.kde.krunner.desktop" --key "_k_friendly_name" "KRunner"
+			kwriteconfig5 --file kglobalshortcutsrc --group "org.kde.krunner.desktop" --key "_launch" "Alt+Space,Alt+F2,Search"
+			
+			##Restart KWin to apply changes
+			qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
+			
+			##Mark as applied
+			touch "$HOME/.ubuntu-unity-applied"
+			
+			##Remove autostart entry after first application
+			rm -f "$HOME/.config/autostart/ubuntu-unity-theme.desktop" 2>/dev/null || true
+			
+			echo "Ubuntu Unity theme applied to Kubuntu!"
+		fi
+	EOF
+	
+	chmod +x /usr/local/bin/setup-ubuntu-unity-theme.sh
+	
+	echo "Ubuntu Unity global theme created for Kubuntu."
+	echo "Theme will be applied automatically on first KDE login."
+	echo "You can switch themes anytime in System Settings > Appearance > Global Theme"
 }
 
 NetworkManager_config(){
